@@ -25,6 +25,9 @@ public interface ITransactionRepository
 
 public interface IUnitOfWork : IDisposable
 {
+    Task<TResult> OrchestrateAsync<TResult>(
+        Func<CancellationToken, Task<TResult>> operation,
+        CancellationToken ct = default);
     IAccountRepository Accounts { get; }
     ITransactionRepository Transactions { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

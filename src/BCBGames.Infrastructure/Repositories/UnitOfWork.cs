@@ -64,4 +64,30 @@ public class UnitOfWork : IUnitOfWork
         _transaction?.Dispose();
         _context.Dispose();
     }
+
+    public async Task<TResult> OrchestrateAsync<TResult>(
+        Func<CancellationToken, Task<TResult>> operation,
+        CancellationToken ct = default)
+    {
+        var strategy = _context.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await BeginTransactionAsync(ct);
+
+            try
+            {
+                var result = await operation(ct);
+                await SaveChangesAsync(ct);
+                await CommitAsync(ct);
+                return result;
+            }
+            catch
+            {
+                await RollbackAsync(ct);
+                throw;
+            }
+        });
+    }
+
 }

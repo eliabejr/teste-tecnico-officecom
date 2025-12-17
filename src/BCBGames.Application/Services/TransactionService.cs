@@ -20,43 +20,34 @@ public class TransactionService : ITransactionService
         _logger = logger;
     }
     
-    public async Task<TransactionResponse> DepositAsync(DepositRequest request, CancellationToken ct = default)
+    public Task<TransactionResponse> DepositAsync(
+        DepositRequest request,
+        CancellationToken ct = default)
     {
-        return await ExecuteWithRetryAsync(async () =>
+        return _unitOfWork.OrchestrateAsync(async ct =>
         {
-            await _unitOfWork.BeginTransactionAsync(ct);
-            
-            try
-            {
-                var account = await _unitOfWork.Accounts.GetByIdForUpdateAsync(request.AccountId, ct)
-                    ?? throw new AccountNotFoundException(request.AccountId);
-                
-                var transaction = Transaction.Create(
-                    account.Id,
-                    TransactionType.Deposit,
-                    request.Amount,
-                    account.Balance,
-                    request.Description ?? "Depósito");
-                
-                account.Credit(request.Amount);
-                transaction.Complete(account.Balance);
-                
-                await _unitOfWork.Transactions.AddAsync(transaction, ct);
-                await _unitOfWork.Accounts.UpdateAsync(account, ct);
-                await _unitOfWork.SaveChangesAsync(ct);
-                await _unitOfWork.CommitAsync(ct);
-                
-                _logger.LogInformation(
-                    "Deposit completed: Account={AccountId}, Amount={Amount}, NewBalance={Balance}",
-                    account.Id, request.Amount, account.Balance);
-                
-                return MapToResponse(transaction);
-            }
-            catch
-            {
-                await _unitOfWork.RollbackAsync(ct);
-                throw;
-            }
+            var account = await _unitOfWork.Accounts
+                .GetByIdForUpdateAsync(request.AccountId, ct)
+                ?? throw new AccountNotFoundException(request.AccountId);
+
+            var transaction = Transaction.Create(
+                account.Id,
+                TransactionType.Deposit,
+                request.Amount,
+                account.Balance,
+                request.Description ?? "Depósito");
+
+            account.Credit(request.Amount);
+            transaction.Complete(account.Balance);
+
+            await _unitOfWork.Transactions.AddAsync(transaction, ct);
+            await _unitOfWork.Accounts.UpdateAsync(account, ct);
+
+            _logger.LogInformation(
+                "Deposit completed: Account={AccountId}, Amount={Amount}, NewBalance={Balance}",
+                account.Id, request.Amount, account.Balance);
+
+            return MapToResponse(transaction);
         }, ct);
     }
     
