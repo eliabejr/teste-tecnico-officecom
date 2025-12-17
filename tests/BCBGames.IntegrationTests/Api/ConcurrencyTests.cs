@@ -17,6 +17,8 @@ public class ConcurrencyTests : IClassFixture<IntegrationTestFixture>
     [Fact]
     public async Task Purchase_Concurrency_100SimultaneousRequests_ShouldNotLoseUpdates()
     {
+        await _fixture.ClearDatabaseAsync();
+
         using var client = _fixture.CreateClient();
 
         var createAccount = await client.PostAsJsonAsync("/api/accounts", new

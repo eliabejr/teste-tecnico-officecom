@@ -46,9 +46,11 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 options.UseNpgsql(_connectionString, npgsqlOptions =>
                 {
                     npgsqlOptions.EnableRetryOnFailure(
-                        maxRetryCount: 3,
-                        maxRetryDelay: TimeSpan.FromSeconds(5),
-                        errorCodesToAdd: null);
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(10),
+                        errorCodesToAdd: new[] { "40001", "40P01", "57014" });
+
+                    npgsqlOptions.CommandTimeout(30);
                 });
             });
         });
