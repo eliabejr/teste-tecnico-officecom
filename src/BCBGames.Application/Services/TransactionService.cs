@@ -53,88 +53,68 @@ public class TransactionService : ITransactionService
     
     public async Task<TransactionResponse> WithdrawAsync(WithdrawRequest request, CancellationToken ct = default)
     {
-        return await ExecuteWithRetryAsync(async () =>
-        {
-            await _unitOfWork.BeginTransactionAsync(ct);
-            
-            try
+        return await ExecuteWithRetryAsync(
+            async innerCt => await _unitOfWork.OrchestrateAsync(async orchestrateCt =>
             {
-                var account = await _unitOfWork.Accounts.GetByIdForUpdateAsync(request.AccountId, ct)
+                var account = await _unitOfWork.Accounts.GetByIdForUpdateAsync(request.AccountId, orchestrateCt)
                     ?? throw new AccountNotFoundException(request.AccountId);
-                
+
                 if (!account.HasSufficientBalance(request.Amount))
                     throw new InsufficientBalanceException(account.Balance, request.Amount);
-                
+
                 var transaction = Transaction.Create(
                     account.Id,
                     TransactionType.Withdraw,
                     request.Amount,
                     account.Balance,
                     request.Description ?? "Saque");
-                
+
                 account.Debit(request.Amount);
                 transaction.Complete(account.Balance);
-                
-                await _unitOfWork.Transactions.AddAsync(transaction, ct);
-                await _unitOfWork.Accounts.UpdateAsync(account, ct);
-                await _unitOfWork.SaveChangesAsync(ct);
-                await _unitOfWork.CommitAsync(ct);
-                
+
+                await _unitOfWork.Transactions.AddAsync(transaction, orchestrateCt);
+                await _unitOfWork.Accounts.UpdateAsync(account, orchestrateCt);
+
                 _logger.LogInformation(
                     "Withdraw completed: Account={AccountId}, Amount={Amount}, NewBalance={Balance}",
                     account.Id, request.Amount, account.Balance);
-                
+
                 return MapToResponse(transaction);
-            }
-            catch
-            {
-                await _unitOfWork.RollbackAsync(ct);
-                throw;
-            }
-        }, ct);
+            }, innerCt),
+            ct);
     }
     
-    public async Task<TransactionResponse> PurchaseAsync(PurchaseRequest request, CancellationToken ct = default)
+public async Task<TransactionResponse> PurchaseAsync(PurchaseRequest request, CancellationToken ct = default)
     {
-        return await ExecuteWithRetryAsync(async () =>
-        {
-            await _unitOfWork.BeginTransactionAsync(ct);
-            
-            try
+        return await ExecuteWithRetryAsync(
+            async innerCt => await _unitOfWork.OrchestrateAsync(async orchestrateCt =>
             {
-                var account = await _unitOfWork.Accounts.GetByIdForUpdateAsync(request.AccountId, ct)
+                var account = await _unitOfWork.Accounts.GetByIdForUpdateAsync(request.AccountId, orchestrateCt)
                     ?? throw new AccountNotFoundException(request.AccountId);
-                
+
                 if (!account.HasSufficientBalance(request.Amount))
                     throw new InsufficientBalanceException(account.Balance, request.Amount);
-                
+
                 var transaction = Transaction.Create(
                     account.Id,
                     TransactionType.Purchase,
                     request.Amount,
                     account.Balance,
                     $"Compra: {request.Merchant}");
-                
+
                 account.Debit(request.Amount);
                 transaction.Complete(account.Balance);
-                
-                await _unitOfWork.Transactions.AddAsync(transaction, ct);
-                await _unitOfWork.Accounts.UpdateAsync(account, ct);
-                await _unitOfWork.SaveChangesAsync(ct);
-                await _unitOfWork.CommitAsync(ct);
-                
+
+                await _unitOfWork.Transactions.AddAsync(transaction, orchestrateCt);
+                await _unitOfWork.Accounts.UpdateAsync(account, orchestrateCt);
+
                 _logger.LogInformation(
                     "Purchase completed: Account={AccountId}, Merchant={Merchant}, Amount={Amount}, NewBalance={Balance}",
                     account.Id, request.Merchant, request.Amount, account.Balance);
-                
+
                 return MapToResponse(transaction);
-            }
-            catch
-            {
-                await _unitOfWork.RollbackAsync(ct);
-                throw;
-            }
-        }, ct);
+            }, innerCt),
+            ct);
     }
     
     public async Task<TransactionResponse?> GetTransactionAsync(Guid id, CancellationToken ct = default)
@@ -144,7 +124,7 @@ public class TransactionService : ITransactionService
     }
     
     private async Task<TransactionResponse> ExecuteWithRetryAsync(
-        Func<Task<TransactionResponse>> operation,
+        Func<CancellationToken, Task<TransactionResponse>> operation,
         CancellationToken ct)
     {
         var retryCount = 0;
@@ -153,7 +133,7 @@ public class TransactionService : ITransactionService
         {
             try
             {
-                return await operation();
+                return await operation(ct);
             }
             catch (ConcurrencyException) when (retryCount < MaxRetries)
             {
