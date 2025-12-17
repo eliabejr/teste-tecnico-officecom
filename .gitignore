@@ -1,0 +1,32 @@
+# build
+bin/
+obj/
+
+# tests
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+coverage.cobertura.xml
+loadtests/reports/*.json
+loadtests/reports/*.log
+
+# general
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+
+# logs
+*.log
+
+# nuget
+packages/
+.nuget/

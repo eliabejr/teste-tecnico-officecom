@@ -100,3 +100,25 @@ curl "http://localhost:8000/api/accounts/{id}/statement?page=1&pageSize=20"
 
 `ConnectionStrings__DefaultConnection`: String de conexão PostgreSQL. Padrão: localhost
 `ASPNETCORE_ENVIRONMENT`: Ambiente (Development/Production). Padrão: Development
+
+## Testes
+
+### Unitários
+
+```bash
+dotnet test tests/BCBGames.UnitTests/BCBGames.UnitTests.csproj
+```
+
+### Integração
+
+Os testes de integração usam Testcontainers.
+
+```bash
+dotnet test tests/BCBGames.IntegrationTests/BCBGames.IntegrationTests.csproj
+```
+
+### Todos
+
+```bash
+dotnet test
+```
