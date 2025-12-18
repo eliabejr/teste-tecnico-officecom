@@ -29,8 +29,13 @@ builder.Services.AddMediatR(cfg =>
     cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
 });
 
+var redisConnectionString = builder.Configuration.GetSection("Redis:ConnectionString").Value
+    ?? builder.Configuration.GetConnectionString("Redis")
+    ?? "localhost:6379";
+
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<AppDbContext>();
+    .AddDbContextCheck<AppDbContext>()
+    .AddRedis(redisConnectionString, name: "redis");
 
 var app = builder.Build();
 

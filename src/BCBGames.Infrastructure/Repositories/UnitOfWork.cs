@@ -3,23 +3,34 @@ using BCBGames.Domain.Interfaces;
 using BCBGames.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 
 namespace BCBGames.Infrastructure.Repositories;
 
 public class UnitOfWork : IUnitOfWork
 {
     private readonly AppDbContext _context;
+    private readonly ICacheService _cacheService;
+    private readonly IDistributedLockService _lockService;
+    private readonly ILogger<AccountRepository> _accountLogger;
     private IDbContextTransaction? _transaction;
 
     private IAccountRepository? _accounts;
     private ITransactionRepository? _transactions;
 
-    public UnitOfWork(AppDbContext context)
+    public UnitOfWork(
+        AppDbContext context,
+        ICacheService cacheService,
+        IDistributedLockService lockService,
+        ILogger<AccountRepository> accountLogger)
     {
         _context = context;
+        _cacheService = cacheService;
+        _lockService = lockService;
+        _accountLogger = accountLogger;
     }
 
-    public IAccountRepository Accounts => _accounts ??= new AccountRepository(_context);
+    public IAccountRepository Accounts => _accounts ??= new AccountRepository(_context, _cacheService, _lockService, _accountLogger);
     public ITransactionRepository Transactions => _transactions ??= new TransactionRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
