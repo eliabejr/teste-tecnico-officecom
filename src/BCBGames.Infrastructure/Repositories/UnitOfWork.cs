@@ -69,8 +69,9 @@ public class UnitOfWork : IUnitOfWork
         Func<CancellationToken, Task<TResult>> operation,
         CancellationToken ct = default)
     {
-        const int maxRetries = 3;
         var retryCount = 0;
+        const int baseDelayMs = 5;
+        const int maxDelayMs = 100;
 
         var strategy = _context.Database.CreateExecutionStrategy();
 
@@ -94,10 +95,11 @@ public class UnitOfWork : IUnitOfWork
                     await CommitAsync(ct);
                     return result;
                 }
-                catch (ConcurrencyException) when (retryCount < maxRetries)
+                catch (ConcurrencyException)
                 {
                     retryCount++;
-                    await Task.Delay(Random.Shared.Next(10, 50), ct);
+                    var delay = Math.Min(baseDelayMs * (1 << Math.Min(retryCount, 6)), maxDelayMs);
+                    await Task.Delay(Random.Shared.Next(delay / 2, delay), ct);
                 }
                 catch
                 {
