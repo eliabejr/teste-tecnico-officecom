@@ -1,8 +1,9 @@
 using BCBGames.API.Middleware;
-using BCBGames.Application.Interfaces;
-using BCBGames.Application.Services;
+using BCBGames.Application.Behaviors;
+using BCBGames.Application.Commands.CreateAccount;
 using BCBGames.Infrastructure;
 using BCBGames.Infrastructure.Data;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
@@ -22,8 +23,11 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
-builder.Services.AddScoped<IAccountService, AccountService>();
-builder.Services.AddScoped<ITransactionService, TransactionService>();
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssembly(typeof(CreateAccountCommand).Assembly);
+    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
+});
 
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<AppDbContext>();
@@ -48,7 +52,7 @@ try
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-    
+
     logger.LogInformation("aplicando migrationns...");
     db.Database.Migrate();
     logger.LogInformation("migrations aplicadas com sucesso.");

@@ -1,0 +1,54 @@
+using BCBGames.Application.DTOs;
+using BCBGames.Domain.Entities;
+using BCBGames.Domain.Enums;
+using BCBGames.Domain.Exceptions;
+using BCBGames.Domain.Interfaces;
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace BCBGames.Application.Commands.Deposit;
+
+public class DepositHandler : IRequestHandler<DepositCommand, TransactionResponse>
+{
+    private readonly IUnitOfWork _unitOfWork;
+    private readonly ILogger<DepositHandler> _logger;
+
+    public DepositHandler(IUnitOfWork unitOfWork, ILogger<DepositHandler> logger)
+    {
+        _unitOfWork = unitOfWork;
+        _logger = logger;
+    }
+
+    public Task<TransactionResponse> Handle(DepositCommand request, CancellationToken cancellationToken)
+    {
+        return _unitOfWork.OrchestrateAsync(async ct =>
+        {
+            var account = await _unitOfWork.Accounts
+                .GetByIdForUpdateAsync(request.AccountId, ct)
+                ?? throw new AccountNotFoundException(request.AccountId);
+
+            var transaction = Transaction.Create(
+                account.Id,
+                TransactionType.Deposit,
+                request.Amount,
+                account.Balance,
+                request.Description ?? "Depósito");
+
+            account.Credit(request.Amount);
+            transaction.Complete(account.Balance);
+
+            await _unitOfWork.Transactions.AddAsync(transaction, ct);
+            await _unitOfWork.Accounts.UpdateAsync(account, ct);
+
+            _logger.LogInformation(
+                "Deposit completed: Account={AccountId}, Amount={Amount}, NewBalance={Balance}",
+                account.Id, request.Amount, account.Balance);
+
+            return MapToResponse(transaction);
+        }, cancellationToken);
+    }
+
+    private static TransactionResponse MapToResponse(Transaction t) =>
+        new(t.Id, t.AccountId, t.Type, t.Amount, t.Description,
+            t.BalanceBefore, t.BalanceAfter, t.Status, t.CreatedAt, t.ProcessedAt);
+}
