@@ -22,6 +22,17 @@ src/
 └── BCBGames.Infrastructure/
 ```
 
+A arquitetura segue os princípios de **Clean Architecture** com separação de responsabilidades da seguinte forma:
+- API: Camada de apresentação (Controllers, Middleware)
+- Application: Casos de uso (Commands/Queries com CQRS via MediatR)
+- Domain: Entidades e regras de negócio
+- Infrastructure: Persistência (EF Core, Redis), repositórios, cache
+
+## Decisões Arquiteturais
+Padrão ADR, armazenados na pasta `docs/adr.`
+
+Detalhes neste [link](https://adr.github.io/).
+
 ## Setup Local
 
 ### Pré-requisitos
@@ -122,3 +133,23 @@ dotnet test tests/BCBGames.IntegrationTests/BCBGames.IntegrationTests.csproj
 ```bash
 dotnet test
 ```
+
+### Testes de Carga (k6)
+
+Scripts para validar performance e concorrência:
+
+```bash
+# Teste de compras (valida P95 < 1.5s)
+./scripts/k6-purchase.sh [VUS] [ITERATIONS_PER_VU]
+
+# Teste de consultas (valida P95 < 500ms)
+./scripts/k6-query.sh [VUS] [ITERATIONS_PER_VU]
+
+# Teste de depósitos
+./scripts/k6-deposit.sh [VUS] [ITERATIONS_PER_VU]
+
+# Teste de saques
+./scripts/k6-withdraw.sh [VUS] [ITERATIONS_PER_VU]
+```
+
+Os relatórios são salvos em `loadtests/reports/`.
