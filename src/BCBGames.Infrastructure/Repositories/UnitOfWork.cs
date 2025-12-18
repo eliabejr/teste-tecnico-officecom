@@ -3,7 +3,6 @@ using BCBGames.Domain.Interfaces;
 using BCBGames.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
-using System.Data;
 
 namespace BCBGames.Infrastructure.Repositories;
 
@@ -37,9 +36,7 @@ public class UnitOfWork : IUnitOfWork
 
     public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
-        _transaction = await _context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
+        _transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
     }
 
     public async Task CommitAsync(CancellationToken cancellationToken = default)
@@ -72,30 +69,41 @@ public class UnitOfWork : IUnitOfWork
         Func<CancellationToken, Task<TResult>> operation,
         CancellationToken ct = default)
     {
+        const int maxRetries = 3;
+        var retryCount = 0;
+
         var strategy = _context.Database.CreateExecutionStrategy();
 
         return await strategy.ExecuteAsync(async () =>
         {
-            _context.ChangeTracker.Clear();
-
-            if (_transaction is not null)
+            while (true)
             {
-                await RollbackAsync(ct);
-            }
+                _context.ChangeTracker.Clear();
 
-            await BeginTransactionAsync(ct);
+                if (_transaction is not null)
+                {
+                    await RollbackAsync(ct);
+                }
 
-            try
-            {
-                var result = await operation(ct);
-                await SaveChangesAsync(ct);
-                await CommitAsync(ct);
-                return result;
-            }
-            catch
-            {
-                await RollbackAsync(ct);
-                throw;
+                await BeginTransactionAsync(ct);
+
+                try
+                {
+                    var result = await operation(ct);
+                    await SaveChangesAsync(ct);
+                    await CommitAsync(ct);
+                    return result;
+                }
+                catch (ConcurrencyException) when (retryCount < maxRetries)
+                {
+                    retryCount++;
+                    await Task.Delay(Random.Shared.Next(10, 50), ct);
+                }
+                catch
+                {
+                    await RollbackAsync(ct);
+                    throw;
+                }
             }
         });
     }
