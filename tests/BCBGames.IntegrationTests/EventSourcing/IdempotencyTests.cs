@@ -11,7 +11,7 @@ namespace BCBGames.IntegrationTests.EventSourcing;
 public class IdempotencyTests
 {
     [Fact]
-    public void GenerateIdempotencyKey_ShouldGenerateConsistentKey()
+    public void GenerateIdempotencyKey_WithoutProvidedKey_ShouldGenerateUniqueKeys()
     {
         var mockCache = new Mock<IDistributedCache>();
         var mockLogger = new Mock<ILogger<IdempotencyService>>();
@@ -29,7 +29,7 @@ public class IdempotencyTests
     }
 
     [Fact]
-    public void GenerateIdempotencyKey_WithSameRequestId_ShouldGenerateSameKey()
+    public void GenerateIdempotencyKey_WithProvidedKey_ShouldBeDeterministic()
     {
         var mockCache = new Mock<IDistributedCache>();
         var mockLogger = new Mock<ILogger<IdempotencyService>>();
@@ -38,15 +38,13 @@ public class IdempotencyTests
         var accountId = Guid.NewGuid();
         var transactionType = "DepositedEvent";
         var amount = 100.50m;
-        var requestId = Guid.NewGuid();
+        var providedKey = "client-provided-key-123";
 
-        var key1 = service.GenerateIdempotencyKey(accountId, transactionType, amount, requestId);
+        var key1 = service.GenerateIdempotencyKey(accountId, transactionType, amount, providedKey);
+        var key2 = service.GenerateIdempotencyKey(accountId, transactionType, amount, providedKey);
 
-        Thread.Sleep(1000);
-
-        var key2 = service.GenerateIdempotencyKey(accountId, transactionType, amount, requestId);
-
-        Assert.NotEqual(key1, key2);
+        Assert.Equal(key1, key2);
+        Assert.Equal(64, key1.Length);
     }
 
     [Fact]
