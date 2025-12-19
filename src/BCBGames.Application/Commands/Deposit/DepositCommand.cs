@@ -6,4 +6,5 @@ namespace BCBGames.Application.Commands.Deposit;
 public record DepositCommand(
     Guid AccountId,
     decimal Amount,
-    string? Description = null) : IRequest<TransactionResponse>;
+    string? Description = null,
+    string? IdempotencyKey = null) : IRequest<TransactionResponse>;

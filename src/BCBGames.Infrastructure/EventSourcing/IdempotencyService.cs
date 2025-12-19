@@ -25,14 +25,21 @@ public class IdempotencyService : IIdempotencyService
         Guid accountId,
         string transactionType,
         decimal amount,
-        Guid? requestId = null)
+        string? providedKey = null)
     {
-        var requestIdValue = requestId ?? Guid.NewGuid();
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-
         var normalizedAmount = amount.ToString("F2", System.Globalization.CultureInfo.InvariantCulture);
 
-        var keyString = $"{accountId}:{transactionType}:{normalizedAmount}:{timestamp}:{requestIdValue}";
+        string keyString;
+        if (!string.IsNullOrWhiteSpace(providedKey))
+        {
+            keyString = $"{accountId}:{transactionType}:{normalizedAmount}:{providedKey.Trim()}";
+        }
+        else
+        {
+            var nonce = Guid.NewGuid();
+            var timestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            keyString = $"{accountId}:{transactionType}:{normalizedAmount}:{timestampMs}:{nonce}";
+        }
 
         using var sha256 = SHA256.Create();
         var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(keyString));

@@ -12,22 +12,17 @@ public class AccountRepository : IAccountRepository
 {
     private readonly AppDbContext _context;
     private readonly ICacheService _cacheService;
-    private readonly IDistributedLockService _lockService;
     private readonly ILogger<AccountRepository> _logger;
     private const string CacheKeyPrefix = "account:";
-    private const string LockKeyPrefix = "account-lock:";
     private static readonly TimeSpan CacheExpiration = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan LockExpiration = TimeSpan.FromSeconds(30);
 
     public AccountRepository(
         AppDbContext context,
         ICacheService cacheService,
-        IDistributedLockService lockService,
         ILogger<AccountRepository> logger)
     {
         _context = context;
         _cacheService = cacheService;
-        _lockService = lockService;
         _logger = logger;
     }
 
@@ -58,20 +53,6 @@ public class AccountRepository : IAccountRepository
 
     public async Task<Account?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        var lockKey = $"{LockKeyPrefix}{id}";
-
-        using var lockHandle = await _lockService.AcquireLockAsync(
-            lockKey,
-            LockExpiration,
-            TimeSpan.FromSeconds(10),
-            cancellationToken);
-
-        if (lockHandle == null || !lockHandle.IsAcquired)
-        {
-            _logger.LogWarning("Failed to acquire lock for account {AccountId}", id);
-            throw new InvalidOperationException($"Could not acquire lock for account {id}");
-        }
-
         var cacheKey = $"{CacheKeyPrefix}{id}";
         await _cacheService.RemoveAsync(cacheKey, cancellationToken);
 
@@ -80,7 +61,7 @@ public class AccountRepository : IAccountRepository
 
         if (account != null)
         {
-            _logger.LogDebug("Account {AccountId} retrieved from database with lock", id);
+            _logger.LogDebug("Account {AccountId} retrieved from database for update", id);
         }
 
         return account;
@@ -89,11 +70,6 @@ public class AccountRepository : IAccountRepository
     public async Task<Account> AddAsync(Account account, CancellationToken cancellationToken = default)
     {
         await _context.Accounts.AddAsync(account, cancellationToken);
-
-        var cacheKey = $"{CacheKeyPrefix}{account.Id}";
-        var dto = MapToDto(account);
-        await _cacheService.SetAsync(cacheKey, dto, CacheExpiration, cancellationToken);
-
         return account;
     }
 

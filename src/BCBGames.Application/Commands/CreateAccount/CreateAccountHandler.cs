@@ -9,46 +9,54 @@ namespace BCBGames.Application.Commands.CreateAccount;
 
 public class CreateAccountHandler : IRequestHandler<CreateAccountCommand, AccountResponse>
 {
-    private readonly IEventStore _eventStore;
-    private readonly IIdempotencyService _idempotencyService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IOutboxService _outboxService;
+    private readonly IIdempotencyService _idempotencyService;
     private readonly ILogger<CreateAccountHandler> _logger;
 
     public CreateAccountHandler(
-        IEventStore eventStore,
-        IIdempotencyService idempotencyService,
         IUnitOfWork unitOfWork,
+        IOutboxService outboxService,
+        IIdempotencyService idempotencyService,
         ILogger<CreateAccountHandler> logger)
     {
-        _eventStore = eventStore;
-        _idempotencyService = idempotencyService;
         _unitOfWork = unitOfWork;
+        _outboxService = outboxService;
+        _idempotencyService = idempotencyService;
         _logger = logger;
     }
 
     public async Task<AccountResponse> Handle(CreateAccountCommand request, CancellationToken cancellationToken)
     {
-        var account = Account.Create(request.OwnerName, request.InitialBalance);
+        var response = await _unitOfWork.OrchestrateAsync(
+            async ct =>
+            {
+                var account = Account.Create(request.OwnerName, request.InitialBalance);
 
-        var idempotencyKey = _idempotencyService.GenerateIdempotencyKey(
-            account.Id,
-            nameof(AccountCreatedEvent),
-            request.InitialBalance);
+                var idempotencyKey = request.IdempotencyKey ?? _idempotencyService.GenerateIdempotencyKey(
+                    account.Id,
+                    nameof(AccountCreatedEvent),
+                    request.InitialBalance);
 
-        var @event = new AccountCreatedEvent(
-            account.Id,
-            account.AccountNumber,
-            account.OwnerName,
-            account.Balance,
-            idempotencyKey);
+                var @event = new AccountCreatedEvent(
+                    account.Id,
+                    account.AccountNumber,
+                    account.OwnerName,
+                    account.Balance,
+                    idempotencyKey);
 
-        await _eventStore.PublishAsync(@event, cancellationToken);
+                await _unitOfWork.Accounts.AddAsync(account, ct);
+                await _outboxService.AddAsync(@event, ct);
 
-        _logger.LogInformation(
-            "AccountCreatedEvent published: AccountId={AccountId}, AccountNumber={AccountNumber}, IdempotencyKey={IdempotencyKey}",
-            account.Id, account.AccountNumber, idempotencyKey);
+                _logger.LogInformation(
+                    "Account created: AccountId={AccountId}, AccountNumber={AccountNumber}, IdempotencyKey={IdempotencyKey}",
+                    account.Id, account.AccountNumber, idempotencyKey);
 
-        return MapToResponse(account);
+                return MapToResponse(account);
+            },
+            cancellationToken);
+
+        return response;
     }
 
     private static AccountResponse MapToResponse(Account account) =>

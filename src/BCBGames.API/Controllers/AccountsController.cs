@@ -27,9 +27,21 @@ public class AccountsController : ControllerBase
         [FromBody] CreateAccountRequest request,
         CancellationToken ct)
     {
-        var command = new CreateAccountCommand(request.OwnerName, request.InitialBalance);
+        var idempotencyKey = GetIdempotencyKey();
+        var command = new CreateAccountCommand(request.OwnerName, request.InitialBalance, idempotencyKey);
         var account = await _mediator.Send(command, ct);
         return CreatedAtAction(nameof(GetAccount), new { id = account.Id }, account);
+    }
+
+    private string? GetIdempotencyKey()
+    {
+        if (Request.Headers.TryGetValue("Idempotency-Key", out var idempotencyKey))
+            return idempotencyKey.ToString();
+
+        if (Request.Headers.TryGetValue("X-Request-Id", out var requestId))
+            return requestId.ToString();
+
+        return null;
     }
 
     [HttpGet("{id:guid}")]

@@ -35,9 +35,9 @@ public class KafkaEventStore : IEventStore, IDisposable
         var producerConfig = new ProducerConfig
         {
             BootstrapServers = bootstrapServers,
-            Acks = Acks.All, // Wait for all replicas
-            EnableIdempotence = true, // Exactly-once semantics (without transactions)
-            MaxInFlight = 5, // Required for idempotence
+            Acks = Acks.All,
+            EnableIdempotence = true,
+            MaxInFlight = 5,
             RetryBackoffMs = 100,
             MessageSendMaxRetries = 3
         };
@@ -104,7 +104,6 @@ public class KafkaEventStore : IEventStore, IDisposable
 
             var results = await Task.WhenAll(tasks);
 
-            // All messages were delivered successfully (ProduceAsync throws on error)
             _logger.LogInformation(
                 "Successfully published {Count} events (idempotent producer)",
                 eventsList.Count);

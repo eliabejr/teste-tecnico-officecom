@@ -1,5 +1,7 @@
 using BCBGames.Domain.Exceptions;
+using BCBGames.Domain.Entities;
 using BCBGames.Domain.Interfaces;
+using BCBGames.Infrastructure.Cache;
 using BCBGames.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -30,14 +32,27 @@ public class UnitOfWork : IUnitOfWork
         _accountLogger = accountLogger;
     }
 
-    public IAccountRepository Accounts => _accounts ??= new AccountRepository(_context, _cacheService, _lockService, _accountLogger);
+    public IAccountRepository Accounts => _accounts ??= new AccountRepository(_context, _cacheService, _accountLogger);
     public ITransactionRepository Transactions => _transactions ??= new TransactionRepository(_context);
 
     public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            return await _context.SaveChangesAsync(cancellationToken);
+            var changedAccounts = _context.ChangeTracker
+                .Entries<Account>()
+                .Where(e => e.State is EntityState.Added or EntityState.Modified)
+                .Select(e => e.Entity)
+                .ToList();
+
+            var rows = await _context.SaveChangesAsync(cancellationToken);
+
+            if (_transaction is null && changedAccounts.Count != 0)
+            {
+                await UpdateAccountsCacheAsync(changedAccounts, cancellationToken);
+            }
+
+            return rows;
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -102,8 +117,21 @@ public class UnitOfWork : IUnitOfWork
                 try
                 {
                     var result = await operation(ct);
+
+                    var changedAccounts = _context.ChangeTracker
+                        .Entries<Account>()
+                        .Where(e => e.State is EntityState.Added or EntityState.Modified)
+                        .Select(e => e.Entity)
+                        .ToList();
+
                     await SaveChangesAsync(ct);
                     await CommitAsync(ct);
+
+                    if (changedAccounts.Count != 0)
+                    {
+                        await UpdateAccountsCacheAsync(changedAccounts, ct);
+                    }
+
                     return result;
                 }
                 catch (ConcurrencyException)
@@ -119,6 +147,119 @@ public class UnitOfWork : IUnitOfWork
                 }
             }
         });
+    }
+
+    public async Task<TResult> OrchestrateAsync<TResult>(
+        string lockKey,
+        Func<CancellationToken, Task<TResult>> operation,
+        CancellationToken ct = default)
+    {
+        var retryCount = 0;
+        const int baseDelayMs = 5;
+        const int maxDelayMs = 100;
+        var lockExpiry = TimeSpan.FromSeconds(30);
+        var lockWaitTime = TimeSpan.FromSeconds(10);
+
+        var strategy = _context.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            while (true)
+            {
+                IDistributedLockHandle? lockHandle = null;
+
+                try
+                {
+                    lockHandle = await _lockService.AcquireLockAsync(
+                        lockKey,
+                        lockExpiry,
+                        lockWaitTime,
+                        ct);
+
+                    if (lockHandle == null || !lockHandle.IsAcquired)
+                    {
+                        throw new InvalidOperationException($"Could not acquire lock for key: {lockKey}");
+                    }
+
+                    _context.ChangeTracker.Clear();
+
+                    if (_transaction is not null)
+                    {
+                        await RollbackAsync(ct);
+                    }
+
+                    await BeginTransactionAsync(ct);
+
+                    try
+                    {
+                        var result = await operation(ct);
+
+                        var changedAccounts = _context.ChangeTracker
+                            .Entries<Account>()
+                            .Where(e => e.State is EntityState.Added or EntityState.Modified)
+                            .Select(e => e.Entity)
+                            .ToList();
+
+                        await SaveChangesAsync(ct);
+                        await CommitAsync(ct);
+
+                        lockHandle?.Dispose();
+                        lockHandle = null;
+
+                        if (changedAccounts.Count != 0)
+                        {
+                            await UpdateAccountsCacheAsync(changedAccounts, ct);
+                        }
+
+                        return result;
+                    }
+                    catch (ConcurrencyException)
+                    {
+                        await RollbackAsync(ct);
+                        lockHandle?.Dispose();
+                        lockHandle = null;
+
+                        retryCount++;
+                        var delay = Math.Min(baseDelayMs * (1 << Math.Min(retryCount, 6)), maxDelayMs);
+                        await Task.Delay(Random.Shared.Next(delay / 2, delay), ct);
+                    }
+                    catch
+                    {
+                        await RollbackAsync(ct);
+                        lockHandle?.Dispose();
+                        throw;
+                    }
+                }
+                catch (Exception) when (lockHandle != null)
+                {
+                    lockHandle.Dispose();
+                    throw;
+                }
+            }
+        });
+    }
+
+    private async Task UpdateAccountsCacheAsync(IEnumerable<Account> accounts, CancellationToken cancellationToken)
+    {
+        const string cacheKeyPrefix = "account:";
+        var expiration = TimeSpan.FromMinutes(5);
+
+        foreach (var account in accounts)
+        {
+            var cacheKey = $"{cacheKeyPrefix}{account.Id}";
+            var dto = new AccountCacheDto
+            {
+                Id = account.Id,
+                AccountNumber = account.AccountNumber,
+                OwnerName = account.OwnerName,
+                Balance = account.Balance,
+                CreatedAt = account.CreatedAt,
+                UpdatedAt = account.UpdatedAt,
+                Version = account.Version
+            };
+
+            await _cacheService.SetAsync(cacheKey, dto, expiration, cancellationToken);
+        }
     }
 
 }

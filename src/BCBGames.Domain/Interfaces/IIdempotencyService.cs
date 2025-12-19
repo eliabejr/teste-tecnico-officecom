@@ -6,7 +6,7 @@ public interface IIdempotencyService
         Guid accountId,
         string transactionType,
         decimal amount,
-        Guid? requestId = null);
+        string? providedKey = null);
 
     Task<bool> IsDuplicateAsync(string idempotencyKey, CancellationToken cancellationToken = default);
 

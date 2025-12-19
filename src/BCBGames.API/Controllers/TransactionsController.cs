@@ -28,7 +28,8 @@ public class TransactionsController : ControllerBase
         [FromBody] DepositRequest request,
         CancellationToken ct)
     {
-        var command = new DepositCommand(request.AccountId, request.Amount, request.Description);
+        var idempotencyKey = GetIdempotencyKey();
+        var command = new DepositCommand(request.AccountId, request.Amount, request.Description, idempotencyKey);
         var transaction = await _mediator.Send(command, ct);
         return CreatedAtAction(nameof(GetTransaction), new { id = transaction.Id }, transaction);
     }
@@ -42,7 +43,8 @@ public class TransactionsController : ControllerBase
         [FromBody] WithdrawRequest request,
         CancellationToken ct)
     {
-        var command = new WithdrawCommand(request.AccountId, request.Amount, request.Description);
+        var idempotencyKey = GetIdempotencyKey();
+        var command = new WithdrawCommand(request.AccountId, request.Amount, request.Description, idempotencyKey);
         var transaction = await _mediator.Send(command, ct);
         return CreatedAtAction(nameof(GetTransaction), new { id = transaction.Id }, transaction);
     }
@@ -56,9 +58,21 @@ public class TransactionsController : ControllerBase
         [FromBody] PurchaseRequest request,
         CancellationToken ct)
     {
-        var command = new PurchaseCommand(request.AccountId, request.Amount, request.Merchant);
+        var idempotencyKey = GetIdempotencyKey();
+        var command = new PurchaseCommand(request.AccountId, request.Amount, request.Merchant, idempotencyKey);
         var transaction = await _mediator.Send(command, ct);
         return CreatedAtAction(nameof(GetTransaction), new { id = transaction.Id }, transaction);
+    }
+
+    private string? GetIdempotencyKey()
+    {
+        if (Request.Headers.TryGetValue("Idempotency-Key", out var idempotencyKey))
+            return idempotencyKey.ToString();
+
+        if (Request.Headers.TryGetValue("X-Request-Id", out var requestId))
+            return requestId.ToString();
+
+        return null;
     }
 
     [HttpGet("{id:guid}")]

@@ -1,7 +1,5 @@
-using System.Reflection;
 using BCBGames.Application.DTOs;
 using BCBGames.Domain.Entities;
-using BCBGames.Domain.Enums;
 using BCBGames.Domain.Events;
 using BCBGames.Domain.Exceptions;
 using BCBGames.Domain.Interfaces;
@@ -12,66 +10,57 @@ namespace BCBGames.Application.Commands.Purchase;
 
 public class PurchaseHandler : IRequestHandler<PurchaseCommand, TransactionResponse>
 {
-    private readonly IEventStore _eventStore;
-    private readonly IIdempotencyService _idempotencyService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IOutboxService _outboxService;
+    private readonly IIdempotencyService _idempotencyService;
     private readonly ILogger<PurchaseHandler> _logger;
+    private const string LockKeyPrefix = "account-lock:";
 
     public PurchaseHandler(
-        IEventStore eventStore,
-        IIdempotencyService idempotencyService,
         IUnitOfWork unitOfWork,
+        IOutboxService outboxService,
+        IIdempotencyService idempotencyService,
         ILogger<PurchaseHandler> logger)
     {
-        _eventStore = eventStore;
-        _idempotencyService = idempotencyService;
         _unitOfWork = unitOfWork;
+        _outboxService = outboxService;
+        _idempotencyService = idempotencyService;
         _logger = logger;
     }
 
     public async Task<TransactionResponse> Handle(PurchaseCommand request, CancellationToken cancellationToken)
     {
-        var account = await _unitOfWork.Accounts.GetByIdAsync(request.AccountId, cancellationToken)
-            ?? throw new AccountNotFoundException(request.AccountId);
-
-        if (!account.HasSufficientBalance(request.Amount))
-            throw new InsufficientBalanceException(account.Balance, request.Amount);
-
-        var idempotencyKey = _idempotencyService.GenerateIdempotencyKey(
+        var lockKey = $"{LockKeyPrefix}{request.AccountId}";
+        var idempotencyKey = request.IdempotencyKey ?? _idempotencyService.GenerateIdempotencyKey(
             request.AccountId,
             nameof(PurchasedEvent),
             request.Amount);
 
-        var transactionId = Guid.NewGuid();
-        var transaction = Transaction.Create(
-            account.Id,
-            TransactionType.Purchase,
-            request.Amount,
-            account.Balance,
-            $"Compra: {request.Merchant}");
+        var response = await _unitOfWork.OrchestrateAsync<TransactionResponse>(
+            lockKey,
+            async ct =>
+            {
+                var account = await _unitOfWork.Accounts.GetByIdForUpdateAsync(request.AccountId, ct)
+                    ?? throw new AccountNotFoundException(request.AccountId);
 
-        typeof(Transaction).GetProperty(nameof(Transaction.Id))!
-            .SetValue(transaction, transactionId);
+                var (transaction, @event) = account.Purchase(
+                    request.Amount,
+                    request.Merchant,
+                    idempotencyKey);
 
-        var balanceAfter = account.Balance - request.Amount;
+                await _unitOfWork.Transactions.AddAsync(transaction, ct);
+                await _unitOfWork.Accounts.UpdateAsync(account, ct);
+                await _outboxService.AddAsync(@event, ct);
 
-        var @event = new PurchasedEvent(
-            account.Id,
-            transactionId,
-            request.Amount,
-            request.Merchant,
-            account.Balance,
-            balanceAfter,
-            idempotencyKey);
+                _logger.LogInformation(
+                    "Purchase processed: AccountId={AccountId}, TransactionId={TransactionId}, Amount={Amount}, Merchant={Merchant}, IdempotencyKey={IdempotencyKey}",
+                    account.Id, transaction.Id, request.Amount, request.Merchant, idempotencyKey);
 
-        await _eventStore.PublishAsync(@event, cancellationToken);
+                return MapToResponse(transaction);
+            },
+            cancellationToken);
 
-        _logger.LogInformation(
-            "PurchasedEvent published: AccountId={AccountId}, TransactionId={TransactionId}, Amount={Amount}, Merchant={Merchant}, IdempotencyKey={IdempotencyKey}",
-            account.Id, transactionId, request.Amount, request.Merchant, idempotencyKey);
-
-        transaction.Complete(balanceAfter);
-        return MapToResponse(transaction);
+        return response;
     }
 
     private static TransactionResponse MapToResponse(Transaction t) =>

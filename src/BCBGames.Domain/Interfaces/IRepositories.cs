@@ -16,8 +16,9 @@ public interface IAccountRepository
     Task<Account?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Busca uma conta por ID com lock distribuído para atualização.
-    /// Este método deve ser usado antes de operações que modificam o saldo.
+    /// Busca uma conta por ID com tracking para atualização.
+    /// Invalida o cache e retorna entidade trackeada pelo EF Core.
+    /// O lock distribuído deve ser gerenciado pelo OrchestrateAsync quando necessário.
     /// </summary>
     /// <param name="id">Identificador único da conta.</param>
     /// <param name="cancellationToken">Token de cancelamento.</param>
@@ -108,6 +109,20 @@ public interface IUnitOfWork : IDisposable
     /// <param name="ct">Token de cancelamento.</param>
     /// <returns>O resultado da operação.</returns>
     Task<TResult> OrchestrateAsync<TResult>(
+        Func<CancellationToken, Task<TResult>> operation,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Orquestra uma operação dentro de uma transação com lock distribuído e retry automático.
+    /// Adquire e mantém o lock durante toda a transação, garantindo serialização de operações concorrentes.
+    /// </summary>
+    /// <typeparam name="TResult">Tipo do resultado da operação.</typeparam>
+    /// <param name="lockKey">Chave para o lock distribuído (ex: "account-lock:{accountId}").</param>
+    /// <param name="operation">A operação a ser executada dentro da transação.</param>
+    /// <param name="ct">Token de cancelamento.</param>
+    /// <returns>O resultado da operação.</returns>
+    Task<TResult> OrchestrateAsync<TResult>(
+        string lockKey,
         Func<CancellationToken, Task<TResult>> operation,
         CancellationToken ct = default);
 

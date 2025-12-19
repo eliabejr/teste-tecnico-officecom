@@ -9,6 +9,7 @@ public class AppDbContext : DbContext
 
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,6 +69,31 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.AccountId);
             entity.HasIndex(e => e.CreatedAt);
             entity.HasIndex(e => new { e.AccountId, e.CreatedAt });
+        });
+
+        modelBuilder.Entity<OutboxMessage>(entity =>
+        {
+            entity.ToTable("OutboxMessages");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.EventType)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.Property(e => e.IdempotencyKey)
+                .IsRequired()
+                .HasMaxLength(500);
+
+            entity.Property(e => e.PayloadJson)
+                .IsRequired();
+
+            entity.Property(e => e.LastError)
+                .HasMaxLength(2000);
+
+            entity.HasIndex(e => e.ProcessedAt);
+
+            entity.HasIndex(e => new { e.IdempotencyKey, e.EventType, e.AggregateId })
+                .IsUnique();
         });
     }
 }

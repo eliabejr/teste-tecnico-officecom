@@ -2,7 +2,6 @@ using System.Text;
 using System.Text.Json;
 using BCBGames.Domain.Events;
 using BCBGames.Domain.Interfaces;
-using BCBGames.Infrastructure.EventSourcing.Projections;
 using Confluent.Kafka;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -65,7 +64,7 @@ public class KafkaConsumerService : BackgroundService
             .Build();
 
         _logger.LogInformation(
-            "KafkaConsumerService initialized. Topics: AccountEvents={AccountTopic}, TransactionEvents={TransactionTopic}",
+            "KafkaConsumerService initialized as integrity monitor. Topics: AccountEvents={AccountTopic}, TransactionEvents={TransactionTopic}",
             _accountEventsTopic, _transactionEventsTopic);
     }
 
@@ -156,14 +155,14 @@ public class KafkaConsumerService : BackgroundService
                 return;
             }
 
-            await ProcessEventProjectionAsync(@event, scope, cancellationToken);
+            await CheckEventIntegrityAsync(@event, scope, cancellationToken);
 
             await idempotencyService.StoreIdempotencyKeyAsync(idempotencyKey, cancellationToken: cancellationToken);
 
             _consumer.Commit(result);
 
-            _logger.LogInformation(
-                "Successfully processed event {EventType} with Id={EventId}, AggregateId={AggregateId}",
+            _logger.LogDebug(
+                "Event integrity checked: EventType={EventType}, EventId={EventId}, AggregateId={AggregateId}",
                 @event.EventType, @event.Id, @event.AggregateId);
         }
         catch (Exception ex)
@@ -175,35 +174,41 @@ public class KafkaConsumerService : BackgroundService
         }
     }
 
-    private async Task ProcessEventProjectionAsync(
+    private async Task CheckEventIntegrityAsync(
         DomainEvent @event,
         IServiceScope scope,
         CancellationToken cancellationToken)
     {
-        var accountProjection = scope.ServiceProvider.GetRequiredService<AccountProjection>();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+        var account = await unitOfWork.Accounts.GetByIdAsync(@event.AggregateId, cancellationToken);
 
-        switch (@event)
+        if (account == null)
         {
-            case AccountCreatedEvent accountCreated:
-                await accountProjection.HandleAsync(accountCreated, cancellationToken);
-                break;
-
-            case DepositedEvent deposited:
-                await accountProjection.HandleAsync(deposited, cancellationToken);
-                break;
-
-            case WithdrawnEvent withdrawn:
-                await accountProjection.HandleAsync(withdrawn, cancellationToken);
-                break;
-
-            case PurchasedEvent purchased:
-                await accountProjection.HandleAsync(purchased, cancellationToken);
-                break;
-
-            default:
-                _logger.LogWarning("Unknown event type: {EventType}", @event.GetType().Name);
-                break;
+            _logger.LogWarning(
+                "Divergence detected: Account {AccountId} not found in PostgreSQL for event {EventType} (EventId={EventId})",
+                @event.AggregateId, @event.EventType, @event.Id);
+            return;
         }
+
+        var expectedBalance = GetExpectedBalanceFromEvent(@event);
+        if (expectedBalance.HasValue && account.Balance != expectedBalance.Value)
+        {
+            _logger.LogWarning(
+                "Divergence detected: Account {AccountId} has balance {ActualBalance}, expected {ExpectedBalance} for event {EventType} (EventId={EventId})",
+                @event.AggregateId, account.Balance, expectedBalance.Value, @event.EventType, @event.Id);
+        }
+    }
+
+    private decimal? GetExpectedBalanceFromEvent(DomainEvent @event)
+    {
+        return @event switch
+        {
+            AccountCreatedEvent e => e.InitialBalance,
+            DepositedEvent e => e.BalanceAfter,
+            WithdrawnEvent e => e.BalanceAfter,
+            PurchasedEvent e => e.BalanceAfter,
+            _ => null
+        };
     }
 
     private string GetEventType(Headers headers)

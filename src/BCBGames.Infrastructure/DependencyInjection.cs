@@ -2,7 +2,6 @@ using BCBGames.Domain.Interfaces;
 using BCBGames.Infrastructure.Cache;
 using BCBGames.Infrastructure.Data;
 using BCBGames.Infrastructure.EventSourcing;
-using BCBGames.Infrastructure.EventSourcing.Projections;
 using BCBGames.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
@@ -56,9 +55,10 @@ public static class DependencyInjection
 
         services.AddSingleton<IEventStore, KafkaEventStore>();
         services.AddScoped<IIdempotencyService, IdempotencyService>();
-        services.AddScoped<AccountProjection>();
+        services.AddScoped<IOutboxService, OutboxService>();
 
         services.AddHostedService<KafkaConsumerService>();
+        services.AddHostedService<OutboxPublisherService>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 

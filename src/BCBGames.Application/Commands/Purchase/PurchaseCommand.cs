@@ -6,4 +6,5 @@ namespace BCBGames.Application.Commands.Purchase;
 public record PurchaseCommand(
     Guid AccountId,
     decimal Amount,
-    string Merchant) : IRequest<TransactionResponse>;
+    string Merchant,
+    string? IdempotencyKey = null) : IRequest<TransactionResponse>;

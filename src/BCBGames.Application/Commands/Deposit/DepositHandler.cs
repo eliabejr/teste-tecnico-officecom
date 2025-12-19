@@ -1,7 +1,5 @@
-using System.Reflection;
 using BCBGames.Application.DTOs;
 using BCBGames.Domain.Entities;
-using BCBGames.Domain.Enums;
 using BCBGames.Domain.Events;
 using BCBGames.Domain.Exceptions;
 using BCBGames.Domain.Interfaces;
@@ -12,63 +10,57 @@ namespace BCBGames.Application.Commands.Deposit;
 
 public class DepositHandler : IRequestHandler<DepositCommand, TransactionResponse>
 {
-    private readonly IEventStore _eventStore;
-    private readonly IIdempotencyService _idempotencyService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IOutboxService _outboxService;
+    private readonly IIdempotencyService _idempotencyService;
     private readonly ILogger<DepositHandler> _logger;
+    private const string LockKeyPrefix = "account-lock:";
 
     public DepositHandler(
-        IEventStore eventStore,
-        IIdempotencyService idempotencyService,
         IUnitOfWork unitOfWork,
+        IOutboxService outboxService,
+        IIdempotencyService idempotencyService,
         ILogger<DepositHandler> logger)
     {
-        _eventStore = eventStore;
-        _idempotencyService = idempotencyService;
         _unitOfWork = unitOfWork;
+        _outboxService = outboxService;
+        _idempotencyService = idempotencyService;
         _logger = logger;
     }
 
     public async Task<TransactionResponse> Handle(DepositCommand request, CancellationToken cancellationToken)
     {
-        var account = await _unitOfWork.Accounts.GetByIdAsync(request.AccountId, cancellationToken)
-            ?? throw new AccountNotFoundException(request.AccountId);
-
-        var idempotencyKey = _idempotencyService.GenerateIdempotencyKey(
+        var lockKey = $"{LockKeyPrefix}{request.AccountId}";
+        var idempotencyKey = request.IdempotencyKey ?? _idempotencyService.GenerateIdempotencyKey(
             request.AccountId,
             nameof(DepositedEvent),
             request.Amount);
 
-        var transactionId = Guid.NewGuid();
-        var transaction = Transaction.Create(
-            account.Id,
-            TransactionType.Deposit,
-            request.Amount,
-            account.Balance,
-            request.Description ?? "Depósito");
+        var response = await _unitOfWork.OrchestrateAsync<TransactionResponse>(
+            lockKey,
+            async ct =>
+            {
+                var account = await _unitOfWork.Accounts.GetByIdForUpdateAsync(request.AccountId, ct)
+                    ?? throw new AccountNotFoundException(request.AccountId);
 
-        typeof(Transaction).GetProperty(nameof(Transaction.Id))!
-            .SetValue(transaction, transactionId);
+                var (transaction, @event) = account.Deposit(
+                    request.Amount,
+                    request.Description,
+                    idempotencyKey);
 
-        var balanceAfter = account.Balance + request.Amount;
+                await _unitOfWork.Transactions.AddAsync(transaction, ct);
+                await _unitOfWork.Accounts.UpdateAsync(account, ct);
+                await _outboxService.AddAsync(@event, ct);
 
-        var @event = new DepositedEvent(
-            account.Id,
-            transactionId,
-            request.Amount,
-            account.Balance,
-            balanceAfter,
-            idempotencyKey,
-            request.Description ?? "Depósito");
+                _logger.LogInformation(
+                    "Deposit processed: AccountId={AccountId}, TransactionId={TransactionId}, Amount={Amount}, IdempotencyKey={IdempotencyKey}",
+                    account.Id, transaction.Id, request.Amount, idempotencyKey);
 
-        await _eventStore.PublishAsync(@event, cancellationToken);
+                return MapToResponse(transaction);
+            },
+            cancellationToken);
 
-        _logger.LogInformation(
-            "DepositedEvent published: AccountId={AccountId}, TransactionId={TransactionId}, Amount={Amount}, IdempotencyKey={IdempotencyKey}",
-            account.Id, transactionId, request.Amount, idempotencyKey);
-
-        transaction.Complete(balanceAfter);
-        return MapToResponse(transaction);
+        return response;
     }
 
     private static TransactionResponse MapToResponse(Transaction t) =>
