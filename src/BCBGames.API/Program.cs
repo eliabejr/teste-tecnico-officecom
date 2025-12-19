@@ -8,6 +8,26 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Microsoft.Extensions.Options;
+using DotNetEnv;
+
+// Carrega .env se existir (apenas para execução local, não dentro do Docker)
+// Dentro do Docker, as variáveis são injetadas pelo docker-compose.yml
+var currentDir = Directory.GetCurrentDirectory();
+var envPaths = new[]
+{
+    Path.Combine(currentDir, ".env"), // Raiz do projeto (execução local)
+    Path.Combine(currentDir, "..", "..", ".env"), // Raiz do projeto (execução via dotnet run)
+    Path.Combine(currentDir, "..", "..", "..", ".env") // Raiz do projeto (execução via dotnet run de subdiretório)
+};
+
+foreach (var envPath in envPaths)
+{
+    if (File.Exists(envPath))
+    {
+        Env.Load(envPath);
+        break;
+    }
+}
 
 var builder = WebApplication.CreateBuilder(args);
 

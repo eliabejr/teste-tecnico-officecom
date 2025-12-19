@@ -131,10 +131,43 @@ curl "http://localhost:8000/api/accounts/{id}/statement?page=1&pageSize=20"
 
 ## Variáveis de Ambiente
 
+A aplicação utiliza um arquivo `.env` na raiz do projeto para configurações locais (`dotnet run`). Para Docker, os valores padrão no `docker-compose.yml` já estão configurados corretamente.
+
+### Desenvolvimento Local (dotnet run)
+
+Copie `.env.example` para `.env` e preencha os valores para `localhost`:
+
+```bash
+cp .env.example .env
+# Edite .env com valores para localhost
+```
+
+### Docker (docker-compose)
+
+O `docker-compose.yml` já possui valores padrão corretos para o ambiente Docker (`postgres`, `redis`, `kafka`). Para usar valores customizados, exporte variáveis de ambiente antes de executar `docker compose up`:
+
+```bash
+export ConnectionStrings__DefaultConnection="Host=postgres;Port=5432;Database=bcb_games;Username=postgres;Password=postgres"
+docker compose up -d
+```
+
+### Variáveis Obrigatórias
+
+- `ASPNETCORE_ENVIRONMENT`: Ambiente da aplicação (`Development` | `Production`)
 - `ConnectionStrings__DefaultConnection`: String de conexão PostgreSQL
-- `Redis__ConnectionString`: Conexão Redis (padrão: localhost:6379)
-- `Kafka__BootstrapServers`: Servidores Kafka (padrão: localhost:9092)
-- `ASPNETCORE_ENVIRONMENT`: Ambiente (Development/Production)
+- `Redis__ConnectionString`: String de conexão Redis
+- `Kafka__BootstrapServers`: Servidores Kafka (bootstrap servers)
+- `RateLimiting__Enabled`: Habilita/desabilita rate limiting (`true` | `false`)
+- `RateLimiting__FailOpen`: Comportamento quando Redis está indisponível (`true` | `false`)
+
+### Variáveis Opcionais
+
+- `Kafka__Topics__AccountEvents`: Nome do tópico para eventos de conta (padrão: `account-events`)
+- `Kafka__Topics__TransactionEvents`: Nome do tópico para eventos de transação (padrão: `transaction-events`)
+
+### Uso em CI/CD
+
+O `docker-compose.yml` está configurado para carregar variáveis de ambiente do ambiente host, permitindo que pipelines de CI/CD injetem secrets:
 
 ## Rate limiting
 

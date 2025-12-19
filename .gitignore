@@ -23,6 +23,7 @@ loadtests/reports/*.log
 Thumbs.db
 .idea/
 *.iml
+.env
 
 # logs
 *.log
