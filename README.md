@@ -10,6 +10,8 @@ Autor: Eliabe Serafim Jr.
 - ASP.NET Core Web API
 - PostgreSQL
 - Entity Framework Core
+- Redis (Cache & Distributed Locks)
+- Apache Kafka (Event Sourcing - KRaft mode)
 - Docker & Docker Compose
 
 ## Arquitetura
@@ -25,8 +27,18 @@ src/
 A arquitetura segue os princípios de **Clean Architecture** com separação de responsabilidades da seguinte forma:
 - API: Camada de apresentação (Controllers, Middleware)
 - Application: Casos de uso (Commands/Queries com CQRS via MediatR)
-- Domain: Entidades e regras de negócio
-- Infrastructure: Persistência (EF Core, Redis), repositórios, cache
+- Domain: Entidades, regras de negócio e Domain Events
+- Infrastructure: Persistência (EF Core, Redis), Event Sourcing (Kafka), repositórios, cache
+
+### Event Sourcing
+
+A aplicação implementa Event Sourcing com Apache Kafka para garantir:
+- Exatamente-uma-vez (exactly-once): Producer idempotente + idempotency keys
+- Ordenação garantida: Particionamento por AccountId
+- Rastreabilidade completa: Todos os eventos armazenados permanentemente
+- Prevenção de race conditions: Idempotency keys no Redis
+
+Documentação completa em [`docs/event-sourcing.md`](docs/event-sourcing.md)
 
 ## Decisões Arquiteturais
 Padrão ADR, armazenados na pasta `docs/adr.`
@@ -43,9 +55,19 @@ Detalhes neste [link](https://adr.github.io/).
 ### Executando com Docker
 
 ```bash
-# Sobe toda a stack (dotnet sdk, api, banco, redis, etc)
-docker-compose up -d
+# 1. Sobe toda a stack (api, postgres, redis, kafka)
+docker compose up -d
+
+# 2. Cria os tópicos do Kafka (requisito apenas na primeira vez rodando)
+./scripts/create-kafka-topics.sh
 ```
+
+Serviços disponíveis:
+- API: http://localhost:8000
+- Swagger: http://localhost:8000/swagger
+- PostgreSQL: localhost:5432
+- Redis: localhost:6379
+- Kafka: localhost:9092
 
 ### Executando Localmente
 
@@ -107,10 +129,12 @@ curl -X POST http://localhost:8000/api/transactions/purchase \
 curl "http://localhost:8000/api/accounts/{id}/statement?page=1&pageSize=20"
 ```
 
-## .ENVS
+## Variáveis de Ambiente
 
-`ConnectionStrings__DefaultConnection`: String de conexão PostgreSQL. Padrão: localhost
-`ASPNETCORE_ENVIRONMENT`: Ambiente (Development/Production). Padrão: Development
+- `ConnectionStrings__DefaultConnection`: String de conexão PostgreSQL
+- `Redis__ConnectionString`: Conexão Redis (padrão: localhost:6379)
+- `Kafka__BootstrapServers`: Servidores Kafka (padrão: localhost:9092)
+- `ASPNETCORE_ENVIRONMENT`: Ambiente (Development/Production)
 
 ## Testes
 

@@ -35,7 +35,6 @@ public class AccountRepository : IAccountRepository
     {
         var cacheKey = $"{CacheKeyPrefix}{id}";
 
-        // Try to get from cache first
         var cachedDto = await _cacheService.GetAsync<AccountCacheDto>(cacheKey, cancellationToken);
         if (cachedDto != null)
         {
@@ -43,14 +42,12 @@ public class AccountRepository : IAccountRepository
             return MapFromDto(cachedDto);
         }
 
-        // If not in cache, get from database
         var account = await _context.Accounts
             .AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
         if (account != null)
         {
-            // Store in cache
             var dto = MapToDto(account);
             await _cacheService.SetAsync(cacheKey, dto, CacheExpiration, cancellationToken);
             _logger.LogDebug("Account {AccountId} stored in cache", id);
@@ -63,7 +60,6 @@ public class AccountRepository : IAccountRepository
     {
         var lockKey = $"{LockKeyPrefix}{id}";
 
-        // Acquire distributed lock to ensure all pods see the same version
         using var lockHandle = await _lockService.AcquireLockAsync(
             lockKey,
             LockExpiration,
@@ -76,11 +72,9 @@ public class AccountRepository : IAccountRepository
             throw new InvalidOperationException($"Could not acquire lock for account {id}");
         }
 
-        // Invalidate cache to ensure we get the latest version
         var cacheKey = $"{CacheKeyPrefix}{id}";
         await _cacheService.RemoveAsync(cacheKey, cancellationToken);
 
-        // Get from database with tracking for update
         var account = await _context.Accounts
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
@@ -89,7 +83,6 @@ public class AccountRepository : IAccountRepository
             _logger.LogDebug("Account {AccountId} retrieved from database with lock", id);
         }
 
-        // Lock will be released when lockHandle is disposed
         return account;
     }
 
@@ -97,7 +90,6 @@ public class AccountRepository : IAccountRepository
     {
         await _context.Accounts.AddAsync(account, cancellationToken);
 
-        // Cache the new account
         var cacheKey = $"{CacheKeyPrefix}{account.Id}";
         var dto = MapToDto(account);
         await _cacheService.SetAsync(cacheKey, dto, CacheExpiration, cancellationToken);
@@ -109,7 +101,6 @@ public class AccountRepository : IAccountRepository
     {
         _context.Accounts.Update(account);
 
-        // Invalidate cache to ensure consistency
         var cacheKey = $"{CacheKeyPrefix}{account.Id}";
         await _cacheService.RemoveAsync(cacheKey, cancellationToken);
         _logger.LogDebug("Cache invalidated for account {AccountId}", account.Id);
@@ -117,7 +108,6 @@ public class AccountRepository : IAccountRepository
 
     public async Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        // Check cache first
         var cacheKey = $"{CacheKeyPrefix}{id}";
         var cachedDto = await _cacheService.GetAsync<AccountCacheDto>(cacheKey, cancellationToken);
         if (cachedDto != null)
@@ -125,7 +115,6 @@ public class AccountRepository : IAccountRepository
             return true;
         }
 
-        // If not in cache, check database
         return await _context.Accounts.AnyAsync(a => a.Id == id, cancellationToken);
     }
 
@@ -147,10 +136,8 @@ public class AccountRepository : IAccountRepository
 
     private static Account MapFromDto(AccountCacheDto dto)
     {
-        // Use reflection to set private properties since Account has private setters
         var account = (Account)Activator.CreateInstance(typeof(Account), nonPublic: true)!;
 
-        // Cache PropertyInfo for better performance
         if (AccountProperties.Count == 0)
         {
             var accountType = typeof(Account);

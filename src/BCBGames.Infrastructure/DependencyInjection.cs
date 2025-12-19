@@ -1,6 +1,8 @@
 using BCBGames.Domain.Interfaces;
 using BCBGames.Infrastructure.Cache;
 using BCBGames.Infrastructure.Data;
+using BCBGames.Infrastructure.EventSourcing;
+using BCBGames.Infrastructure.EventSourcing.Projections;
 using BCBGames.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.StackExchangeRedis;
@@ -31,7 +33,6 @@ public static class DependencyInjection
             });
         });
 
-        // Configure Redis
         var redisConnectionString = configuration.GetSection("Redis:ConnectionString").Value
             ?? configuration.GetConnectionString("Redis")
             ?? "localhost:6379";
@@ -42,7 +43,6 @@ public static class DependencyInjection
             options.InstanceName = "BCBGames:";
         });
 
-        // Register Redis ConnectionMultiplexer as singleton
         services.AddSingleton<IConnectionMultiplexer>(sp =>
         {
             var configuration = ConfigurationOptions.Parse(redisConnectionString, true);
@@ -51,9 +51,14 @@ public static class DependencyInjection
             return ConnectionMultiplexer.Connect(configuration);
         });
 
-        // Register cache and lock services
         services.AddScoped<ICacheService, RedisCacheService>();
         services.AddScoped<IDistributedLockService, RedisDistributedLockService>();
+
+        services.AddSingleton<IEventStore, KafkaEventStore>();
+        services.AddScoped<IIdempotencyService, IdempotencyService>();
+        services.AddScoped<AccountProjection>();
+
+        services.AddHostedService<KafkaConsumerService>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 

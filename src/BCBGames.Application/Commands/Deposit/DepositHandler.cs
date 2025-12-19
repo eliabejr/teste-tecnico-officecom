@@ -1,6 +1,8 @@
+using System.Reflection;
 using BCBGames.Application.DTOs;
 using BCBGames.Domain.Entities;
 using BCBGames.Domain.Enums;
+using BCBGames.Domain.Events;
 using BCBGames.Domain.Exceptions;
 using BCBGames.Domain.Interfaces;
 using MediatR;
@@ -10,42 +12,63 @@ namespace BCBGames.Application.Commands.Deposit;
 
 public class DepositHandler : IRequestHandler<DepositCommand, TransactionResponse>
 {
+    private readonly IEventStore _eventStore;
+    private readonly IIdempotencyService _idempotencyService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<DepositHandler> _logger;
 
-    public DepositHandler(IUnitOfWork unitOfWork, ILogger<DepositHandler> logger)
+    public DepositHandler(
+        IEventStore eventStore,
+        IIdempotencyService idempotencyService,
+        IUnitOfWork unitOfWork,
+        ILogger<DepositHandler> logger)
     {
+        _eventStore = eventStore;
+        _idempotencyService = idempotencyService;
         _unitOfWork = unitOfWork;
         _logger = logger;
     }
 
-    public Task<TransactionResponse> Handle(DepositCommand request, CancellationToken cancellationToken)
+    public async Task<TransactionResponse> Handle(DepositCommand request, CancellationToken cancellationToken)
     {
-        return _unitOfWork.OrchestrateAsync(async ct =>
-        {
-            var account = await _unitOfWork.Accounts
-                .GetByIdForUpdateAsync(request.AccountId, ct)
-                ?? throw new AccountNotFoundException(request.AccountId);
+        var account = await _unitOfWork.Accounts.GetByIdAsync(request.AccountId, cancellationToken)
+            ?? throw new AccountNotFoundException(request.AccountId);
 
-            var transaction = Transaction.Create(
-                account.Id,
-                TransactionType.Deposit,
-                request.Amount,
-                account.Balance,
-                request.Description ?? "Depósito");
+        var idempotencyKey = _idempotencyService.GenerateIdempotencyKey(
+            request.AccountId,
+            nameof(DepositedEvent),
+            request.Amount);
 
-            account.Credit(request.Amount);
-            transaction.Complete(account.Balance);
+        var transactionId = Guid.NewGuid();
+        var transaction = Transaction.Create(
+            account.Id,
+            TransactionType.Deposit,
+            request.Amount,
+            account.Balance,
+            request.Description ?? "Depósito");
 
-            await _unitOfWork.Transactions.AddAsync(transaction, ct);
-            await _unitOfWork.Accounts.UpdateAsync(account, ct);
+        typeof(Transaction).GetProperty(nameof(Transaction.Id))!
+            .SetValue(transaction, transactionId);
 
-            _logger.LogInformation(
-                "Deposit completed: Account={AccountId}, Amount={Amount}, NewBalance={Balance}",
-                account.Id, request.Amount, account.Balance);
+        var balanceAfter = account.Balance + request.Amount;
 
-            return MapToResponse(transaction);
-        }, cancellationToken);
+        var @event = new DepositedEvent(
+            account.Id,
+            transactionId,
+            request.Amount,
+            account.Balance,
+            balanceAfter,
+            idempotencyKey,
+            request.Description ?? "Depósito");
+
+        await _eventStore.PublishAsync(@event, cancellationToken);
+
+        _logger.LogInformation(
+            "DepositedEvent published: AccountId={AccountId}, TransactionId={TransactionId}, Amount={Amount}, IdempotencyKey={IdempotencyKey}",
+            account.Id, transactionId, request.Amount, idempotencyKey);
+
+        transaction.Complete(balanceAfter);
+        return MapToResponse(transaction);
     }
 
     private static TransactionResponse MapToResponse(Transaction t) =>
