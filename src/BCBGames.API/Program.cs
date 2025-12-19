@@ -15,9 +15,9 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "Financial Transactions API",
+        Title = "BCB Games API",
         Version = "v1",
-        Description = "High-performance API for financial transactions with optimistic locking"
+        Description = "Documentação da API do BCB Games"
     });
 });
 

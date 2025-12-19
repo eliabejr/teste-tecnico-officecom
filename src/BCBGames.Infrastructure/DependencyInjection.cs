@@ -4,9 +4,9 @@ using BCBGames.Infrastructure.Data;
 using BCBGames.Infrastructure.EventSourcing;
 using BCBGames.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using StackExchange.Redis;
 
 namespace BCBGames.Infrastructure;
@@ -18,6 +18,15 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException("ConnectionStrings:DefaultConnection is required");
+
+        var maxPoolSize = 50;
+        if (int.TryParse(configuration["Database:MaxPoolSize"], out var configuredMaxPoolSize) && configuredMaxPoolSize > 0)
+            maxPoolSize = configuredMaxPoolSize;
+        var csb = new NpgsqlConnectionStringBuilder(connectionString);
+        csb.MaxPoolSize = maxPoolSize;
+        connectionString = csb.ConnectionString;
 
         services.AddDbContext<AppDbContext>(options =>
         {

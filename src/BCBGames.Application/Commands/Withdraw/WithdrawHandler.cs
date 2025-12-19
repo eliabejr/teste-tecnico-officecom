@@ -14,7 +14,6 @@ public class WithdrawHandler : IRequestHandler<WithdrawCommand, TransactionRespo
     private readonly IOutboxService _outboxService;
     private readonly IIdempotencyService _idempotencyService;
     private readonly ILogger<WithdrawHandler> _logger;
-    private const string LockKeyPrefix = "account-lock:";
 
     public WithdrawHandler(
         IUnitOfWork unitOfWork,
@@ -30,14 +29,12 @@ public class WithdrawHandler : IRequestHandler<WithdrawCommand, TransactionRespo
 
     public async Task<TransactionResponse> Handle(WithdrawCommand request, CancellationToken cancellationToken)
     {
-        var lockKey = $"{LockKeyPrefix}{request.AccountId}";
         var idempotencyKey = request.IdempotencyKey ?? _idempotencyService.GenerateIdempotencyKey(
             request.AccountId,
             nameof(WithdrawnEvent),
             request.Amount);
 
         var response = await _unitOfWork.OrchestrateAsync<TransactionResponse>(
-            lockKey,
             async ct =>
             {
                 var account = await _unitOfWork.Accounts.GetByIdForUpdateAsync(request.AccountId, ct)

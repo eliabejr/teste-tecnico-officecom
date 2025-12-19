@@ -14,7 +14,6 @@ public class PurchaseHandler : IRequestHandler<PurchaseCommand, TransactionRespo
     private readonly IOutboxService _outboxService;
     private readonly IIdempotencyService _idempotencyService;
     private readonly ILogger<PurchaseHandler> _logger;
-    private const string LockKeyPrefix = "account-lock:";
 
     public PurchaseHandler(
         IUnitOfWork unitOfWork,
@@ -30,14 +29,12 @@ public class PurchaseHandler : IRequestHandler<PurchaseCommand, TransactionRespo
 
     public async Task<TransactionResponse> Handle(PurchaseCommand request, CancellationToken cancellationToken)
     {
-        var lockKey = $"{LockKeyPrefix}{request.AccountId}";
         var idempotencyKey = request.IdempotencyKey ?? _idempotencyService.GenerateIdempotencyKey(
             request.AccountId,
             nameof(PurchasedEvent),
             request.Amount);
 
         var response = await _unitOfWork.OrchestrateAsync<TransactionResponse>(
-            lockKey,
             async ct =>
             {
                 var account = await _unitOfWork.Accounts.GetByIdForUpdateAsync(request.AccountId, ct)
