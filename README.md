@@ -136,6 +136,31 @@ curl "http://localhost:8000/api/accounts/{id}/statement?page=1&pageSize=20"
 - `Kafka__BootstrapServers`: Servidores Kafka (padrão: localhost:9092)
 - `ASPNETCORE_ENVIRONMENT`: Ambiente (Development/Production)
 
+## Rate limiting
+
+A API possui rate limiting distribuído via Redis (compatível com múltiplas instâncias), aplicado por IP (prioriza `X-Forwarded-For`, senão `RemoteIpAddress`) e com regras configuráveis por rota.
+
+### Comportamento
+
+Ao exceder o limite, retorna Erro 429.
+- Headers retornados:
+  - `X-RateLimit-Limit`
+  - `X-RateLimit-Remaining`
+  - `X-RateLimit-Reset` (epoch seconds)
+  - `Retry-After` (segundos, apenas no 429)
+Endpoints excluídos por padrão: `/health` e `/swagger`.
+Se o Redis estiver indisponível:
+- `RateLimiting:FailOpen=true` (padrão): a requisição passa (alta disponibilidade)
+- `RateLimiting:FailOpen=false`: responde 429
+
+### Configuração
+
+Arquivo: `src/BCBGames.API/appsettings*.json`
+
+- Default: 300 reqs / 60s
+- Regra específica por endpoint:
+  - `POST /api/transactions/purchase`: 200 reqs / 60s
+
 ## Testes
 
 ### Unitários

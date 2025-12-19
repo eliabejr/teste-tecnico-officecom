@@ -1,4 +1,5 @@
 using BCBGames.API.Middleware;
+using BCBGames.API.RateLimiting;
 using BCBGames.Application.Behaviors;
 using BCBGames.Application.Commands.CreateAccount;
 using BCBGames.Infrastructure;
@@ -6,6 +7,7 @@ using BCBGames.Infrastructure.Data;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +24,8 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);
+
+builder.Services.Configure<RateLimitingOptions>(builder.Configuration.GetSection("RateLimiting"));
 
 builder.Services.AddMediatR(cfg =>
 {
@@ -46,6 +50,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+app.UseMiddleware<RateLimitingMiddleware>();
 
 app.UseHttpsRedirection();
 app.UseAuthorization();
