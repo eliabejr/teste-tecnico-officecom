@@ -8,6 +8,8 @@ using BCBGames.Infrastructure.Data;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Microsoft.Extensions.Options;
@@ -82,6 +84,7 @@ builder.Services
     {
         options.RequireHttpsMetadata = true;
         options.SaveToken = true;
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -91,7 +94,9 @@ builder.Services
             ClockSkew = TimeSpan.FromSeconds(10),
             ValidIssuer = jwtOptions.Issuer,
             ValidAudience = jwtOptions.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(jwtKeyBytes)
+            IssuerSigningKey = new SymmetricSecurityKey(jwtKeyBytes),
+            NameClaimType = JwtRegisteredClaimNames.Sub,
+            RoleClaimType = ClaimTypes.Role
         };
     });
 
@@ -107,9 +112,13 @@ var redisConnectionString = builder.Configuration.GetSection("Redis:ConnectionSt
     ?? builder.Configuration.GetConnectionString("Redis")
     ?? "localhost:6379";
 
-builder.Services.AddHealthChecks()
-    .AddDbContextCheck<AppDbContext>()
-    .AddRedis(redisConnectionString, name: "redis");
+var healthChecks = builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>();
+
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    healthChecks.AddRedis(redisConnectionString, name: "redis");
+}
 
 var app = builder.Build();
 

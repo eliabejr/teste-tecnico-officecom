@@ -7,12 +7,21 @@ public static class UserClaimsExtensions
 {
     public static Guid GetUserId(this ClaimsPrincipal user)
     {
-        var sub = user.FindFirstValue(JwtRegisteredClaimNames.Sub)
-                  ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+        var candidates = new[]
+        {
+            user.FindFirstValue(JwtRegisteredClaimNames.Sub),
+            user.FindFirstValue(ClaimTypes.NameIdentifier),
+            user.FindFirstValue("sub"),
+            user.FindFirstValue("userId"),
+        };
 
-        return Guid.TryParse(sub, out var id)
-            ? id
-            : throw new InvalidOperationException("Authenticated user does not contain a valid 'sub' claim.");
+        foreach (var value in candidates)
+        {
+            if (Guid.TryParse(value, out var id))
+                return id;
+        }
+
+        throw new UnauthorizedAccessException("Invalid token: missing or invalid user id claim.");
     }
 }
 

@@ -32,6 +32,10 @@ public class GlobalExceptionMiddleware
     {
         var (statusCode, response) = exception switch
         {
+            UnauthorizedAccessException ex => (
+                HttpStatusCode.Unauthorized,
+                new ErrorResponse(ex.Message, null, 401)),
+
             AccountNotFoundException ex => (
                 HttpStatusCode.NotFound, 
                 new ErrorResponse(ex.Message, null, 404)),

@@ -37,7 +37,6 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         var register = await client.PostAsJsonAsync("/api/auth/register", new { email, password });
         if (register.IsSuccessStatusCode is false)
         {
-            // If already exists (or any other error), fallback to login.
             var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password });
             login.EnsureSuccessStatusCode();
             var logged = await login.Content.ReadFromJsonAsync<AuthResponse>();
@@ -69,7 +68,25 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         Factory = new CustomWebApplicationFactory(_postgres.GetConnectionString());
 
         using var client = CreateClient();
-        _ = await client.GetAsync("/health");
+        var startedAt = DateTime.UtcNow;
+        var timeout = TimeSpan.FromSeconds(60);
+        Exception? last = null;
+
+        while (DateTime.UtcNow - startedAt < timeout)
+        {
+            try
+            {
+                using var resp = await client.GetAsync("/health");
+                return;
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+                await Task.Delay(500);
+            }
+        }
+
+        throw new TimeoutException("API did not start in time for integration tests.", last);
     }
 
     public async Task ClearDatabaseAsync()
