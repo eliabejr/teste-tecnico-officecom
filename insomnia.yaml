@@ -1,0 +1,445 @@
+type: collection.insomnia.rest/5.0
+schema_version: "5.1"
+name: BCB Games
+meta:
+  id: wrk_b3ac78ecc877483a92541a242fe0ab27
+  created: 1765905063340
+  modified: 1765905063340
+  description: ""
+collection:
+  - url: "{{ _.baseUrl }}/health"
+    name: Health Check
+    meta:
+      id: req_c1501fb8e4564879ba1b2d6acc1a0c98
+      created: 1765905069339
+      modified: 1765905127168
+      isPrivate: false
+      description: ""
+      sortKey: -1765905069339
+    method: GET
+    headers:
+      - name: User-Agent
+        value: insomnia/11.6.1
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - name: Accounts
+    meta:
+      id: fld_278ae0a6acbf4612ba2cda779f477457
+      created: 1765905132400
+      modified: 1766329401162
+      sortKey: -1765905069314
+      description: ""
+    children:
+      - url: "{{ _.baseUrl }}/api/accounts"
+        name: Create Account
+        meta:
+          id: req_d2fb58c5e1cb4490968c4d8d41483c89
+          created: 1765905140112
+          modified: 1766329396781
+          isPrivate: false
+          description: ""
+          sortKey: -1765905597220
+        method: POST
+        body:
+          mimeType: application/json
+          text: |-
+            {
+            	"ownerName": "Eliabe Serafim",
+            	"initialBalance": 125
+            }
+        headers:
+          - name: Content-Type
+            value: application/json
+          - name: User-Agent
+            value: insomnia/11.6.1
+        authentication:
+          type: bearer
+          disabled: false
+          token: "{{ _.accessToken }}"
+          prefix: Bearer
+        scripts:
+          afterResponse: |-
+            const response = insomnia.response;
+
+            if ([200,201].includes(insomnia.response.code)) {
+            	const data = response.json();
+            	insomnia.environment.set("currentAccount", data.id);
+            }
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - url: "{{ _.baseUrl }}/api/accounts/{{ _.currentAccount }}"
+        name: Get by ID
+        meta:
+          id: req_c47add6266ab471ea1f670ac13328e92
+          created: 1765905597120
+          modified: 1766329592718
+          isPrivate: false
+          description: ""
+          sortKey: -1765905597120
+        method: GET
+        headers:
+          - name: User-Agent
+            value: insomnia/11.6.1
+        authentication:
+          type: bearer
+          token: "{{ _.accessToken }}"
+          prefix: Bearer
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - url: "{{ _.baseUrl }}/api/accounts/{{ _.currentAccount }}/balance"
+        name: Get Balance by AccountID
+        meta:
+          id: req_9dd20cbf38874db1874d5b326c99decf
+          created: 1765918283743
+          modified: 1766329604891
+          isPrivate: false
+          description: ""
+          sortKey: -1765905368616
+        method: GET
+        headers:
+          - name: User-Agent
+            value: insomnia/11.6.1
+        authentication:
+          type: bearer
+          token: "{{ _.accessToken }}"
+          prefix: Bearer
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - url: "{{ _.baseUrl }}/api/accounts/{{ _.currentAccount }}/statement"
+        name: Get Statement by AccountID
+        meta:
+          id: req_7f8bee1be0b048bcbc4d415026117568
+          created: 1765918298685
+          modified: 1766329709582
+          isPrivate: false
+          description: ""
+          sortKey: -1765905254364
+        method: GET
+        headers:
+          - name: User-Agent
+            value: insomnia/11.6.1
+        authentication:
+          type: bearer
+          token: "{{ _.accessToken }}"
+          prefix: Bearer
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - url: "{{ _.baseUrl }}/api/accounts/{{ _.currentAccount
+          }}/statement?page=2&pageSize=2"
+        name: Get Statement by AccountID (PAGINATED)
+        meta:
+          id: req_604e2c0ba7324311b78fa4ccdf5981fd
+          created: 1765991334787
+          modified: 1766329817051
+          isPrivate: false
+          description: ""
+          sortKey: -1765905161851.5
+        method: GET
+        headers:
+          - name: User-Agent
+            value: insomnia/11.6.1
+        authentication:
+          type: bearer
+          token: "{{ _.accessToken }}"
+          prefix: Bearer
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+  - name: Transactions
+    meta:
+      id: fld_d3acb3a8f4ed49a2be42ac906a0c1f88
+      created: 1765918225017
+      modified: 1765918240039
+      sortKey: -1765905069289
+      description: ""
+    children:
+      - url: "{{ _.baseUrl }}/api/transactions/deposit"
+        name: Deposit
+        meta:
+          id: req_7a6aea7ef8be44bb9f4daf02920d933d
+          created: 1765918245301
+          modified: 1766329961359
+          isPrivate: false
+          description: ""
+          sortKey: -1765918245301
+        method: POST
+        body:
+          mimeType: application/json
+          text: |-
+            {
+            	"accountId": "{{ _.currentAccount }}",
+            	"amount": 100.00,
+            	"description": "Depósito via PIX"
+            }
+        headers:
+          - name: Content-Type
+            value: application/json
+          - name: User-Agent
+            value: insomnia/11.6.1
+        authentication:
+          type: bearer
+          token: "{{ _.accessToken }}"
+          prefix: Bearer
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - url: "{{ _.baseUrl }}/api/transactions/withdraw"
+        name: Withdraw
+        meta:
+          id: req_ee5f703b7ef14e339d9724965a8ad57e
+          created: 1765990007192
+          modified: 1766329978437
+          isPrivate: false
+          description: ""
+          sortKey: -1765911921260.5
+        method: POST
+        body:
+          mimeType: application/json
+          text: |-
+            {
+            	"accountId": "{{ _.currentAccount }}",
+            	"amount": 10,
+            	"description": "Depósito via PIX"
+            }
+        headers:
+          - name: Content-Type
+            value: application/json
+          - name: User-Agent
+            value: insomnia/11.6.1
+        authentication:
+          type: bearer
+          token: "{{ _.accessToken }}"
+          prefix: Bearer
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - url: "{{ _.baseUrl }}/api/transactions/purchase"
+        name: Purchase
+        meta:
+          id: req_b2a208757b5a452e8d55b024c0dc3b3d
+          created: 1765991185995
+          modified: 1766330215142
+          isPrivate: false
+          description: ""
+          sortKey: -1765908759240.25
+        method: POST
+        body:
+          mimeType: application/json
+          text: |-
+            {
+            	"accountId": "{{ _.currentAccount }}",
+            	"amount": 10,
+            	"merchant": "BCB Games"
+            }
+        headers:
+          - name: Content-Type
+            value: application/json
+          - name: User-Agent
+            value: insomnia/11.6.1
+        authentication:
+          type: bearer
+          token: "{{ _.accessToken }}"
+          prefix: Bearer
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - url: "{{ _.baseUrl }}/api/transactions/7e2f3ffe-4509-4393-b5dc-bd72dc7cc613"
+        name: Get Transaction by ID
+        meta:
+          id: req_4972a70bd8b3454d91b0cbe03a04ecf8
+          created: 1765991260581
+          modified: 1766331552402
+          isPrivate: false
+          description: ""
+          sortKey: -1765908759140.25
+        method: GET
+        headers:
+          - name: User-Agent
+            value: insomnia/11.6.1
+        authentication:
+          type: bearer
+          token: "{{ _.accessToken }}"
+          prefix: Bearer
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+  - name: Auth
+    meta:
+      id: fld_2a1d38e8b8834d7f89d919f13b0eefdc
+      created: 1766328732804
+      modified: 1766335389550
+      sortKey: -1765905069326.5
+      description: ""
+    children:
+      - url: "{{ _.baseUrl }}/api/auth/register"
+        name: Register
+        meta:
+          id: req_296ee81582d94cc8b1797ae9d15a537f
+          created: 1766328738741
+          modified: 1766328880343
+          isPrivate: false
+          description: ""
+          sortKey: -1766328738742
+        method: POST
+        body:
+          mimeType: application/json
+          text: |-
+            {
+            	"email": "eliabesajunior@gmail.com",
+            	"password": "Senha@123"
+            }
+        headers:
+          - name: Content-Type
+            value: application/json
+          - name: User-Agent
+            value: insomnia/12.2.0
+            description: ""
+            disabled: false
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - url: "{{ _.baseUrl }}/api/auth/login"
+        name: Login
+        meta:
+          id: req_972cad8fc3a4438c87898674c6b8ed6b
+          created: 1766328895347
+          modified: 1766328968931
+          isPrivate: false
+          description: ""
+          sortKey: -1766123492021.5
+        method: POST
+        body:
+          mimeType: application/json
+          text: |-
+            {
+            	"email": "eliabesajunior@gmail.com",
+            	"password": "Senha@123"
+            }
+        headers:
+          - name: Content-Type
+            value: application/json
+          - name: User-Agent
+            value: insomnia/12.2.0
+            description: ""
+            disabled: false
+        scripts:
+          afterResponse: |
+            const data = insomnia.response.json();
+            insomnia.environment.set("accessToken", data.accessToken);
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+      - url: "{{ _.baseUrl }}/api/auth/me"
+        name: Me
+        meta:
+          id: req_1bf26bb959f8497a9bd51535f3a9f1a1
+          created: 1766332947921
+          modified: 1766332983026
+          isPrivate: false
+          description: ""
+          sortKey: -1766020868661.25
+        method: GET
+        body:
+          mimeType: application/json
+          text: ""
+        headers:
+          - name: Content-Type
+            value: application/json
+          - name: User-Agent
+            value: insomnia/12.2.0
+            description: ""
+            disabled: false
+        authentication:
+          type: bearer
+          token: "{{ _.accessToken }}"
+          prefix: Bearer
+        settings:
+          renderRequestBody: true
+          encodeUrl: true
+          followRedirects: global
+          cookies:
+            send: true
+            store: true
+          rebuildPath: true
+cookieJar:
+  name: Default Jar
+  meta:
+    id: jar_2f9d7571f84998ecbf194c3ee5a5fc5024f3477d
+    created: 1765905063345
+    modified: 1766335389514
+environments:
+  name: Local
+  meta:
+    id: env_2f9d7571f84998ecbf194c3ee5a5fc5024f3477d
+    created: 1765905063344
+    modified: 1766335389548
+    isPrivate: false
+  data:
+    baseUrl: http://localhost:8000
+    currentAccount: 555727b2-927c-4a11-89d2-92729952848d
+    accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlYmQwOWEyYi0xMjM5LTRhYWMtYTMyOS0zNDQ3ODMzMWVjYWEiLCJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1laWRlbnRpZmllciI6ImViZDA5YTJiLTEyMzktNGFhYy1hMzI5LTM0NDc4MzMxZWNhYSIsImVtYWlsIjoiZWxpYWJlc2FqdW5pb3JAZ21haWwuY29tIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoiVXNlciIsIm5iZiI6MTc2NjMzNTM4OSwiZXhwIjoxNzY2MzM4OTg5LCJpc3MiOiJCQ0JHYW1lcyIsImF1ZCI6IkJDQkdhbWVzIn0.RBWX-A0QaHalEwmCXfiid6B6PDBKe1-dpyt6bnizGtc
