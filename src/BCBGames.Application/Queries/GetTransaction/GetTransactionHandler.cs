@@ -15,7 +15,10 @@ public class GetTransactionHandler : IRequestHandler<GetTransactionQuery, Transa
 
     public async Task<TransactionResponse?> Handle(GetTransactionQuery request, CancellationToken cancellationToken)
     {
-        var transaction = await _unitOfWork.Transactions.GetByIdAsync(request.TransactionId, cancellationToken);
+        var transaction = await _unitOfWork.Transactions.GetByIdForUserAsync(
+            request.TransactionId,
+            request.UserId,
+            cancellationToken);
         return transaction is null ? null : MapToResponse(transaction);
     }
 

@@ -7,19 +7,19 @@ public class AccountTests
     [Fact]
     public void Create_WhenOwnerNameIsNullOrWhitespace_ShouldThrow()
     {
-        Assert.Throws<ArgumentException>(() => Account.Create("  ", 0));
+        Assert.Throws<ArgumentException>(() => Account.Create(Guid.NewGuid(), "  ", 0));
     }
 
     [Fact]
     public void Create_WhenInitialBalanceIsNegative_ShouldThrow()
     {
-        Assert.Throws<ArgumentException>(() => Account.Create("Eli", -0.01m));
+        Assert.Throws<ArgumentException>(() => Account.Create(Guid.NewGuid(), "Eli", -0.01m));
     }
 
     [Fact]
     public void Create_ShouldTrimOwnerName_AndInitializeVersionAndBalance()
     {
-        var account = Account.Create("Eliabe Serafim", 10m);
+        var account = Account.Create(Guid.NewGuid(), "Eliabe Serafim", 10m);
 
         Assert.Equal("Eliabe Serafim", account.OwnerName);
         Assert.Equal(10m, account.Balance);
@@ -31,7 +31,7 @@ public class AccountTests
     [Fact]
     public void Credit_WhenAmountIsZeroOrNegative_ShouldThrow()
     {
-        var account = Account.Create("Eli", 10m);
+        var account = Account.Create(Guid.NewGuid(), "Eli", 10m);
 
         Assert.Throws<ArgumentException>(() => account.Credit(0m));
         Assert.Throws<ArgumentException>(() => account.Credit(-1m));
@@ -40,7 +40,7 @@ public class AccountTests
     [Fact]
     public void Credit_ShouldIncreaseBalance_AndIncrementVersion()
     {
-        var account = Account.Create("Eli", 10m);
+        var account = Account.Create(Guid.NewGuid(), "Eli", 10m);
 
         account.Credit(2.5m);
 
@@ -51,7 +51,7 @@ public class AccountTests
     [Fact]
     public void Debit_WhenAmountIsZeroOrNegative_ShouldThrow()
     {
-        var account = Account.Create("Eli", 10m);
+        var account = Account.Create(Guid.NewGuid(), "Eli", 10m);
 
         Assert.Throws<ArgumentException>(() => account.Debit(0m));
         Assert.Throws<ArgumentException>(() => account.Debit(-1m));
@@ -60,7 +60,7 @@ public class AccountTests
     [Fact]
     public void Debit_WhenInsufficientBalance_ShouldThrow()
     {
-        var account = Account.Create("Eli", 1m);
+        var account = Account.Create(Guid.NewGuid(), "Eli", 1m);
 
         Assert.Throws<InvalidOperationException>(() => account.Debit(1.01m));
     }
@@ -68,7 +68,7 @@ public class AccountTests
     [Fact]
     public void Debit_ShouldDecreaseBalance_AndIncrementVersion()
     {
-        var account = Account.Create("Eli", 10m);
+        var account = Account.Create(Guid.NewGuid(), "Eli", 10m);
 
         account.Debit(3m);
 
@@ -82,7 +82,7 @@ public class AccountTests
     [InlineData(10, 10.01, false)]
     public void HasSufficientBalance_ShouldMatchExpected(decimal balance, decimal amount, bool expected)
     {
-        var account = Account.Create("Eli", balance);
+        var account = Account.Create(Guid.NewGuid(), "Eli", balance);
 
         Assert.Equal(expected, account.HasSufficientBalance(amount));
     }

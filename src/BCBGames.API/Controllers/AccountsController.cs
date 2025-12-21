@@ -3,7 +3,9 @@ using BCBGames.Application.DTOs;
 using BCBGames.Application.Queries.GetAccount;
 using BCBGames.Application.Queries.GetBalance;
 using BCBGames.Application.Queries.GetStatement;
+using BCBGames.API.Auth;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BCBGames.API.Controllers;
@@ -11,6 +13,7 @@ namespace BCBGames.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize]
 public class AccountsController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -27,8 +30,9 @@ public class AccountsController : ControllerBase
         [FromBody] CreateAccountRequest request,
         CancellationToken ct)
     {
+        var userId = User.GetUserId();
         var idempotencyKey = GetIdempotencyKey();
-        var command = new CreateAccountCommand(request.OwnerName, request.InitialBalance, idempotencyKey);
+        var command = new CreateAccountCommand(userId, request.OwnerName, request.InitialBalance, idempotencyKey);
         var account = await _mediator.Send(command, ct);
         return CreatedAtAction(nameof(GetAccount), new { id = account.Id }, account);
     }
@@ -49,7 +53,8 @@ public class AccountsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetAccount(Guid id, CancellationToken ct)
     {
-        var query = new GetAccountQuery(id);
+        var userId = User.GetUserId();
+        var query = new GetAccountQuery(userId, id);
         var account = await _mediator.Send(query, ct);
         return account is null ? NotFound() : Ok(account);
     }
@@ -59,7 +64,8 @@ public class AccountsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetBalance(Guid id, CancellationToken ct)
     {
-        var query = new GetBalanceQuery(id);
+        var userId = User.GetUserId();
+        var query = new GetBalanceQuery(userId, id);
         var balance = await _mediator.Send(query, ct);
         return balance is null ? NotFound() : Ok(balance);
     }
@@ -77,7 +83,8 @@ public class AccountsController : ControllerBase
         if (pageSize < 1) pageSize = 1;
         if (pageSize > 100) pageSize = 100;
 
-        var query = new GetStatementQuery(id, page, pageSize);
+        var userId = User.GetUserId();
+        var query = new GetStatementQuery(userId, id, page, pageSize);
         var statement = await _mediator.Send(query, ct);
         return statement is null ? NotFound() : Ok(statement);
     }

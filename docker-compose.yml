@@ -6,8 +6,6 @@ services:
     ports:
       - "8000:8080"
     environment:
-      # Variáveis podem ser injetadas pela pipeline de CI/CD via secrets
-      # Valores padrão são usados se a variável não estiver definida no ambiente host
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
       - ConnectionStrings__DefaultConnection=${ConnectionStrings__DefaultConnection:-Host=postgres;Port=5432;Database=bcb_games;Username=postgres;Password=postgres}
       - Redis__ConnectionString=${Redis__ConnectionString:-redis:6379}

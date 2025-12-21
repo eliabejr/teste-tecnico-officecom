@@ -18,6 +18,7 @@ public class GetStatementHandler : IRequestHandler<GetStatementQuery, StatementR
         var account = await _unitOfWork.Accounts.GetByIdAsync(request.AccountId, cancellationToken);
 
         if (account is null) return null;
+        if (account.UserId != request.UserId) return null;
 
         var transactions = await _unitOfWork.Transactions.GetByAccountIdAsync(
             request.AccountId, request.Page, request.PageSize, cancellationToken);

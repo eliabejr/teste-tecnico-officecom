@@ -34,11 +34,17 @@ public class PurchaseHandler : IRequestHandler<PurchaseCommand, TransactionRespo
             nameof(PurchasedEvent),
             request.Amount);
 
+        var lockKey = $"account-lock:{request.AccountId}";
+
         var response = await _unitOfWork.OrchestrateAsync<TransactionResponse>(
+            lockKey,
             async ct =>
             {
                 var account = await _unitOfWork.Accounts.GetByIdForUpdateAsync(request.AccountId, ct)
                     ?? throw new AccountNotFoundException(request.AccountId);
+
+                if (account.UserId != request.UserId)
+                    throw new AccountNotFoundException(request.AccountId);
 
                 var (transaction, @event) = account.Purchase(
                     request.Amount,

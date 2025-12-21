@@ -99,6 +99,7 @@ public class AccountRepository : IAccountRepository
         return new AccountCacheDto
         {
             Id = account.Id,
+            UserId = account.UserId,
             AccountNumber = account.AccountNumber,
             OwnerName = account.OwnerName,
             Balance = account.Balance,
@@ -118,6 +119,7 @@ public class AccountRepository : IAccountRepository
         {
             var accountType = typeof(Account);
             AccountProperties[nameof(Account.Id)] = accountType.GetProperty(nameof(Account.Id), BindingFlags.Public | BindingFlags.Instance)!;
+            AccountProperties[nameof(Account.UserId)] = accountType.GetProperty(nameof(Account.UserId), BindingFlags.Public | BindingFlags.Instance)!;
             AccountProperties[nameof(Account.AccountNumber)] = accountType.GetProperty(nameof(Account.AccountNumber), BindingFlags.Public | BindingFlags.Instance)!;
             AccountProperties[nameof(Account.OwnerName)] = accountType.GetProperty(nameof(Account.OwnerName), BindingFlags.Public | BindingFlags.Instance)!;
             AccountProperties[nameof(Account.Balance)] = accountType.GetProperty(nameof(Account.Balance), BindingFlags.Public | BindingFlags.Instance)!;
@@ -127,6 +129,7 @@ public class AccountRepository : IAccountRepository
         }
 
         AccountProperties[nameof(Account.Id)].SetValue(account, dto.Id);
+        AccountProperties[nameof(Account.UserId)].SetValue(account, dto.UserId);
         AccountProperties[nameof(Account.AccountNumber)].SetValue(account, dto.AccountNumber);
         AccountProperties[nameof(Account.OwnerName)].SetValue(account, dto.OwnerName);
         AccountProperties[nameof(Account.Balance)].SetValue(account, dto.Balance);

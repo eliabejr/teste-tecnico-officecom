@@ -3,7 +3,9 @@ using BCBGames.Application.Commands.Purchase;
 using BCBGames.Application.Commands.Withdraw;
 using BCBGames.Application.DTOs;
 using BCBGames.Application.Queries.GetTransaction;
+using BCBGames.API.Auth;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BCBGames.API.Controllers;
@@ -11,6 +13,7 @@ namespace BCBGames.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
+[Authorize]
 public class TransactionsController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -28,8 +31,9 @@ public class TransactionsController : ControllerBase
         [FromBody] DepositRequest request,
         CancellationToken ct)
     {
+        var userId = User.GetUserId();
         var idempotencyKey = GetIdempotencyKey();
-        var command = new DepositCommand(request.AccountId, request.Amount, request.Description, idempotencyKey);
+        var command = new DepositCommand(userId, request.AccountId, request.Amount, request.Description, idempotencyKey);
         var transaction = await _mediator.Send(command, ct);
         return CreatedAtAction(nameof(GetTransaction), new { id = transaction.Id }, transaction);
     }
@@ -43,8 +47,9 @@ public class TransactionsController : ControllerBase
         [FromBody] WithdrawRequest request,
         CancellationToken ct)
     {
+        var userId = User.GetUserId();
         var idempotencyKey = GetIdempotencyKey();
-        var command = new WithdrawCommand(request.AccountId, request.Amount, request.Description, idempotencyKey);
+        var command = new WithdrawCommand(userId, request.AccountId, request.Amount, request.Description, idempotencyKey);
         var transaction = await _mediator.Send(command, ct);
         return CreatedAtAction(nameof(GetTransaction), new { id = transaction.Id }, transaction);
     }
@@ -58,8 +63,9 @@ public class TransactionsController : ControllerBase
         [FromBody] PurchaseRequest request,
         CancellationToken ct)
     {
+        var userId = User.GetUserId();
         var idempotencyKey = GetIdempotencyKey();
-        var command = new PurchaseCommand(request.AccountId, request.Amount, request.Merchant, idempotencyKey);
+        var command = new PurchaseCommand(userId, request.AccountId, request.Amount, request.Merchant, idempotencyKey);
         var transaction = await _mediator.Send(command, ct);
         return CreatedAtAction(nameof(GetTransaction), new { id = transaction.Id }, transaction);
     }
@@ -80,7 +86,8 @@ public class TransactionsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetTransaction(Guid id, CancellationToken ct)
     {
-        var query = new GetTransactionQuery(id);
+        var userId = User.GetUserId();
+        var query = new GetTransactionQuery(userId, id);
         var transaction = await _mediator.Send(query, ct);
         return transaction is null ? NotFound() : Ok(transaction);
     }

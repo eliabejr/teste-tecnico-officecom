@@ -93,6 +93,13 @@ Após executar, ficam disponíveis as seguintes URLs:
 
 ## Endpoints
 
+### Autenticação (JWT)
+POST `/api/auth/register` -> Criar usuário e retornar access token
+POST `/api/auth/login` -> Login e retornar access token
+GET `/api/auth/me` -> Retorna o usuário autenticado
+
+> Observação: endpoints de **contas** e **transações** exigem header `Authorization: Bearer <token>`.
+
 ### Contas
 POST `/api/accounts` -> Criar conta
 GET `/api/accounts/{id}` -> Consultar conta
@@ -110,9 +117,20 @@ GET `/health` -> Health check
 
 ## Exemplos
 
+### Registrar e obter token
+```bash
+curl -X POST http://localhost:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@local","password":"Password123!"}'
+
+# Copie o campo "accessToken" do JSON e exporte:
+export TOKEN="COLE_O_TOKEN_AQUI"
+```
+
 ### Criar Conta
 ```bash
 curl -X POST http://localhost:8000/api/accounts \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"ownerName": "Eliabe Serafim Jr", "initialBalance": 1000}'
 ```
@@ -120,13 +138,14 @@ curl -X POST http://localhost:8000/api/accounts \
 ### Realizar Compra
 ```bash
 curl -X POST http://localhost:8000/api/transactions/purchase \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"accountId": "xyz", "amount": 150.50, "merchant": "Amazon"}'
 ```
 
 ### Consultar Extrato
 ```bash
-curl "http://localhost:8000/api/accounts/{id}/statement?page=1&pageSize=20"
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/accounts/{id}/statement?page=1&pageSize=20"
 ```
 
 ## Variáveis de Ambiente
@@ -157,6 +176,7 @@ docker compose up -d
 - `ConnectionStrings__DefaultConnection`: String de conexão PostgreSQL
 - `Redis__ConnectionString`: String de conexão Redis
 - `Kafka__BootstrapServers`: Servidores Kafka (bootstrap servers)
+- `Jwt__SigningKey`: Chave simétrica para assinar JWT (HS256). **Recomendado >= 32 caracteres**
 - `RateLimiting__Enabled`: Habilita/desabilita rate limiting (`true` | `false`)
 - `RateLimiting__FailOpen`: Comportamento quando Redis está indisponível (`true` | `false`)
 
@@ -164,6 +184,9 @@ docker compose up -d
 
 - `Kafka__Topics__AccountEvents`: Nome do tópico para eventos de conta (padrão: `account-events`)
 - `Kafka__Topics__TransactionEvents`: Nome do tópico para eventos de transação (padrão: `transaction-events`)
+- `Jwt__Issuer`: Issuer do token (padrão: `BCBGames`)
+- `Jwt__Audience`: Audience do token (padrão: `BCBGames`)
+- `Jwt__AccessTokenMinutes`: Duração do access token em minutos (padrão: `60`)
 
 ### Uso em CI/CD
 
@@ -181,7 +204,7 @@ Ao exceder o limite, retorna Erro 429.
   - `X-RateLimit-Remaining`
   - `X-RateLimit-Reset` (epoch seconds)
   - `Retry-After` (segundos, apenas no 429)
-Endpoints excluídos por padrão: `/health` e `/swagger`.
+Endpoints excluídos por padrão: `/api/auth`, `/health` e `/swagger`.
 Se o Redis estiver indisponível:
 - `RateLimiting:FailOpen=true` (padrão): a requisição passa (alta disponibilidade)
 - `RateLimiting:FailOpen=false`: responde 429

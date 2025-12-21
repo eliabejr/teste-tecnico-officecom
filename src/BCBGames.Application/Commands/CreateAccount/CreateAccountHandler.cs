@@ -31,7 +31,7 @@ public class CreateAccountHandler : IRequestHandler<CreateAccountCommand, Accoun
         var response = await _unitOfWork.OrchestrateAsync(
             async ct =>
             {
-                var account = Account.Create(request.OwnerName, request.InitialBalance);
+                var account = Account.Create(request.UserId, request.OwnerName, request.InitialBalance);
 
                 var idempotencyKey = request.IdempotencyKey ?? _idempotencyService.GenerateIdempotencyKey(
                     account.Id,

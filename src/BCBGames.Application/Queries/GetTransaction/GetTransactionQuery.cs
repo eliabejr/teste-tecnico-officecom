@@ -3,4 +3,4 @@ using MediatR;
 
 namespace BCBGames.Application.Queries.GetTransaction;
 
-public record GetTransactionQuery(Guid TransactionId) : IRequest<TransactionResponse?>;
+public record GetTransactionQuery(Guid UserId, Guid TransactionId) : IRequest<TransactionResponse?>;

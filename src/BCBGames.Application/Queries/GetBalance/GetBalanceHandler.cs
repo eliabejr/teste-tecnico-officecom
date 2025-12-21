@@ -18,6 +18,7 @@ public class GetBalanceHandler : IRequestHandler<GetBalanceQuery, BalanceRespons
         var account = await _unitOfWork.Accounts.GetByIdAsync(request.AccountId, cancellationToken);
 
         if (account is null) return null;
+        if (account.UserId != request.UserId) return null;
 
         return new BalanceResponse(
             account.Id,

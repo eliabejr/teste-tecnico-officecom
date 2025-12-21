@@ -17,7 +17,7 @@ public class TransactionsEndpointsTests : IClassFixture<IntegrationTestFixture>
     [Fact]
     public async Task DepositWithdrawPurchase_ShouldPersistAndAppearInStatement()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var createAccount = await client.PostAsJsonAsync("/api/accounts", new { ownerName = "Tx Test", initialBalance = 10m });
         Assert.Equal(HttpStatusCode.Created, createAccount.StatusCode);

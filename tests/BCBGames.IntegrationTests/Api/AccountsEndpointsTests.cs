@@ -17,7 +17,7 @@ public class AccountsEndpointsTests : IClassFixture<IntegrationTestFixture>
     [Fact]
     public async Task CreateAccount_ThenGetAccountAndBalance_ShouldReturnExpected()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var createResponse = await client.PostAsJsonAsync("/api/accounts", new
         {

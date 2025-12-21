@@ -16,7 +16,9 @@ public class GetAccountHandler : IRequestHandler<GetAccountQuery, AccountRespons
     public async Task<AccountResponse?> Handle(GetAccountQuery request, CancellationToken cancellationToken)
     {
         var account = await _unitOfWork.Accounts.GetByIdAsync(request.AccountId, cancellationToken);
-        return account is null ? null : MapToResponse(account);
+        if (account is null) return null;
+        if (account.UserId != request.UserId) return null;
+        return MapToResponse(account);
     }
 
     private static AccountResponse MapToResponse(Domain.Entities.Account account) =>

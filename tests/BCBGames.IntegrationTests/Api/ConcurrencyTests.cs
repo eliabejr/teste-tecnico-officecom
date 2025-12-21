@@ -19,7 +19,7 @@ public class ConcurrencyTests : IClassFixture<IntegrationTestFixture>
     {
         await _fixture.ClearDatabaseAsync();
 
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var createAccount = await client.PostAsJsonAsync("/api/accounts", new
         {

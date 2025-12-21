@@ -1,4 +1,6 @@
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using BCBGames.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -13,10 +15,45 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
 
     public CustomWebApplicationFactory Factory { get; private set; } = null!;
 
-    public HttpClient CreateClient() => Factory.CreateClient(new WebApplicationFactoryClientOptions
+    public HttpClient CreateClient()
     {
-        BaseAddress = new Uri("https://localhost")
-    });
+        var client = Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("http://localhost")
+        });
+
+        client.Timeout = TimeSpan.FromMinutes(5);
+        return client;
+    }
+
+    public async Task<HttpClient> CreateAuthenticatedClientAsync(
+        string? email = null,
+        string password = "Password123!")
+    {
+        var client = CreateClient();
+
+        email ??= $"test-{Guid.NewGuid():N}@local";
+
+        var register = await client.PostAsJsonAsync("/api/auth/register", new { email, password });
+        if (register.IsSuccessStatusCode is false)
+        {
+            // If already exists (or any other error), fallback to login.
+            var login = await client.PostAsJsonAsync("/api/auth/login", new { email, password });
+            login.EnsureSuccessStatusCode();
+            var logged = await login.Content.ReadFromJsonAsync<AuthResponse>();
+            if (logged is null) throw new InvalidOperationException("Could not deserialize login response.");
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", logged.AccessToken);
+            return client;
+        }
+
+        var created = await register.Content.ReadFromJsonAsync<AuthResponse>();
+        if (created is null) throw new InvalidOperationException("Could not deserialize register response.");
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", created.AccessToken);
+        return client;
+    }
+
+    private sealed record AuthResponse(Guid UserId, string Email, string Role, string AccessToken, DateTime ExpiresAtUtc);
 
     public async Task InitializeAsync()
     {
@@ -42,6 +79,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
 
         await context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE \"Transactions\" RESTART IDENTITY CASCADE");
         await context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE \"Accounts\" RESTART IDENTITY CASCADE");
+        await context.Database.ExecuteSqlRawAsync("TRUNCATE TABLE \"Users\" RESTART IDENTITY CASCADE");
     }
 
     public async Task DisposeAsync()

@@ -92,6 +92,30 @@ public interface ITransactionRepository
     /// <param name="cancellationToken">Token de cancelamento.</param>
     /// <returns>Total de transações da conta.</returns>
     Task<int> CountByAccountIdAsync(Guid accountId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Busca uma transação por ID, garantindo que a transação pertence a um usuário específico.
+    /// Útil para autorização sem vazar existência de dados de outros usuários.
+    /// </summary>
+    /// <param name="transactionId">Identificador único da transação.</param>
+    /// <param name="userId">Identificador do usuário dono da conta.</param>
+    /// <param name="cancellationToken">Token de cancelamento.</param>
+    /// <returns>A transação encontrada ou null se não existir/não pertencer ao usuário.</returns>
+    Task<Transaction?> GetByIdForUserAsync(
+        Guid transactionId,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Repository para operações de persistência de usuários (Users).
+/// </summary>
+public interface IUserRepository
+{
+    Task<User?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<User?> GetByEmailAsync(string email, CancellationToken cancellationToken = default);
+    Task<bool> ExistsByEmailAsync(string email, CancellationToken cancellationToken = default);
+    Task<User> AddAsync(User user, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

@@ -3,6 +3,7 @@ namespace BCBGames.Infrastructure.Cache;
 internal class AccountCacheDto
 {
     public Guid Id { get; set; }
+    public Guid UserId { get; set; }
     public string AccountNumber { get; set; } = string.Empty;
     public string OwnerName { get; set; } = string.Empty;
     public decimal Balance { get; set; }

@@ -1,23 +1,25 @@
 using BCBGames.API.Middleware;
 using BCBGames.API.RateLimiting;
+using BCBGames.API.Auth;
 using BCBGames.Application.Behaviors;
 using BCBGames.Application.Commands.CreateAccount;
 using BCBGames.Infrastructure;
 using BCBGames.Infrastructure.Data;
 using MediatR;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Microsoft.Extensions.Options;
 using DotNetEnv;
+using System.Text;
 
-// Carrega .env se existir (apenas para execução local, não dentro do Docker)
-// Dentro do Docker, as variáveis são injetadas pelo docker-compose.yml
 var currentDir = Directory.GetCurrentDirectory();
 var envPaths = new[]
 {
-    Path.Combine(currentDir, ".env"), // Raiz do projeto (execução local)
-    Path.Combine(currentDir, "..", "..", ".env"), // Raiz do projeto (execução via dotnet run)
-    Path.Combine(currentDir, "..", "..", "..", ".env") // Raiz do projeto (execução via dotnet run de subdiretório)
+    Path.Combine(currentDir, ".env"),
+    Path.Combine(currentDir, "..", "..", ".env"),
+    Path.Combine(currentDir, "..", "..", "..", ".env")
 };
 
 foreach (var envPath in envPaths)
@@ -41,11 +43,59 @@ builder.Services.AddSwaggerGen(c =>
         Version = "v1",
         Description = "Documentação da API do BCB Games"
     });
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization Bearer. Ex: \"Authorization: Bearer {token}\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            Array.Empty<string>()
+        }
+    });
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.Configure<RateLimitingOptions>(builder.Configuration.GetSection("RateLimiting"));
+
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+
+var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>() ?? new JwtOptions();
+var jwtKeyBytes = Encoding.UTF8.GetBytes(jwtOptions.SigningKey);
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.RequireHttpsMetadata = true;
+        options.SaveToken = true;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateIssuerSigningKey = true,
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(10),
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(jwtKeyBytes)
+        };
+    });
+
+builder.Services.AddAuthorization();
 
 builder.Services.AddMediatR(cfg =>
 {
@@ -73,10 +123,14 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<RateLimitingMiddleware>();
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseHttpsRedirection();
+}
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").AllowAnonymous();
 
 try
 {

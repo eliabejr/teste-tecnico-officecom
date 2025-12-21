@@ -24,13 +24,15 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Development");
+        builder.UseEnvironment("Testing");
 
         builder.ConfigureAppConfiguration((_, config) =>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:DefaultConnection"] = _connectionString
+                ["ConnectionStrings:DefaultConnection"] = _connectionString,
+                ["RateLimiting:Enabled"] = "false",
+                ["Redis:ConnectionString"] = "localhost:0"
             });
         });
 
@@ -73,6 +75,22 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
             }
 
             services.AddSingleton<IEventStore, MockEventStore>();
+
+            // Replace Redis-based distributed locks with an in-memory implementation for tests.
+            var lockServiceDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IDistributedLockService));
+            if (lockServiceDescriptor is not null)
+            {
+                services.Remove(lockServiceDescriptor);
+            }
+            services.AddSingleton<IDistributedLockService, InMemoryDistributedLockService>();
+
+            // Replace Redis-based cache with a no-op cache to avoid timeouts under high concurrency.
+            var cacheServiceDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(ICacheService));
+            if (cacheServiceDescriptor is not null)
+            {
+                services.Remove(cacheServiceDescriptor);
+            }
+            services.AddSingleton<ICacheService, NoOpCacheService>();
         });
     }
 }

@@ -8,6 +8,10 @@ public class Account
 {
     public Guid Id { get; private set; }
 
+    public Guid UserId { get; private set; }
+
+    public User? User { get; private set; }
+
     [MaxLength(20)]
     public string AccountNumber { get; private set; } = string.Empty;
 
@@ -27,8 +31,11 @@ public class Account
 
     private Account() { }
 
-    public static Account Create(string ownerName, decimal initialBalance = 0)
+    public static Account Create(Guid userId, string ownerName, decimal initialBalance = 0)
     {
+        if (userId == Guid.Empty)
+            throw new ArgumentException("UserId is required", nameof(userId));
+
         if (string.IsNullOrWhiteSpace(ownerName))
             throw new ArgumentException("Owner name is required", nameof(ownerName));
 
@@ -38,6 +45,7 @@ public class Account
         return new Account
         {
             Id = Guid.NewGuid(),
+            UserId = userId,
             AccountNumber = GenerateAccountNumber(),
             OwnerName = ownerName.Trim(),
             Balance = initialBalance,

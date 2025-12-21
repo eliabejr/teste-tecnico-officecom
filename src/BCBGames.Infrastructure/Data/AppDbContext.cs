@@ -7,6 +7,7 @@ public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
+    public DbSet<User> Users => Set<User>();
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
@@ -15,10 +16,41 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.ToTable("Users");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Email)
+                .IsRequired()
+                .HasMaxLength(320);
+
+            entity.Property(e => e.PasswordHash)
+                .IsRequired()
+                .HasMaxLength(500);
+
+            entity.Property(e => e.Role)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.Property(e => e.CreatedAt);
+
+            entity.HasIndex(e => e.Email)
+                .IsUnique();
+
+            entity.HasMany(e => e.Accounts)
+                .WithOne(a => a.User)
+                .HasForeignKey(a => a.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Account>(entity =>
         {
             entity.ToTable("Accounts");
             entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.UserId)
+                .IsRequired();
 
             entity.Property(e => e.AccountNumber)
                 .IsRequired()
@@ -36,6 +68,8 @@ public class AppDbContext : DbContext
 
             entity.HasIndex(e => e.AccountNumber)
                 .IsUnique();
+
+            entity.HasIndex(e => e.UserId);
 
             entity.HasMany(e => e.Transactions)
                 .WithOne(t => t.Account)

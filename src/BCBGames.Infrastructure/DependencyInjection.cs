@@ -70,6 +70,7 @@ public static class DependencyInjection
         services.AddHostedService<OutboxPublisherService>();
 
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        services.AddScoped<IUserRepository, UserRepository>();
 
         return services;
     }

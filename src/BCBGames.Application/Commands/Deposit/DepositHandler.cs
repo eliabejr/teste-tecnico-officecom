@@ -40,6 +40,9 @@ public class DepositHandler : IRequestHandler<DepositCommand, TransactionRespons
                 var account = await _unitOfWork.Accounts.GetByIdForUpdateAsync(request.AccountId, ct)
                     ?? throw new AccountNotFoundException(request.AccountId);
 
+                if (account.UserId != request.UserId)
+                    throw new AccountNotFoundException(request.AccountId);
+
                 var (transaction, @event) = account.Deposit(
                     request.Amount,
                     request.Description,

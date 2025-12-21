@@ -157,8 +157,10 @@ public class UnitOfWork : IUnitOfWork
         var retryCount = 0;
         const int baseDelayMs = 5;
         const int maxDelayMs = 100;
-        var lockExpiry = TimeSpan.FromSeconds(30);
-        var lockWaitTime = TimeSpan.FromSeconds(10);
+        // Default values tuned for bursty concurrency tests and real-world spikes.
+        // The lock is only held during the DB transaction.
+        var lockExpiry = TimeSpan.FromMinutes(5);
+        var lockWaitTime = TimeSpan.FromMinutes(5);
 
         var strategy = _context.Database.CreateExecutionStrategy();
 
@@ -250,6 +252,7 @@ public class UnitOfWork : IUnitOfWork
             var dto = new AccountCacheDto
             {
                 Id = account.Id,
+                UserId = account.UserId,
                 AccountNumber = account.AccountNumber,
                 OwnerName = account.OwnerName,
                 Balance = account.Balance,

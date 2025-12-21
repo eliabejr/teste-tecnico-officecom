@@ -16,7 +16,7 @@ public class ValidationTests : IClassFixture<IntegrationTestFixture>
     [Fact]
     public async Task CreateAccount_WhenOwnerNameTooShort_ShouldReturnBadRequest()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var resp = await client.PostAsJsonAsync("/api/accounts", new { ownerName = "A", initialBalance = 0m });
 
@@ -26,7 +26,7 @@ public class ValidationTests : IClassFixture<IntegrationTestFixture>
     [Fact]
     public async Task Purchase_WhenAmountBelowMinimum_ShouldReturnBadRequest()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var create = await client.PostAsJsonAsync("/api/accounts", new { ownerName = "Val Test", initialBalance = 10m });
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
@@ -41,7 +41,7 @@ public class ValidationTests : IClassFixture<IntegrationTestFixture>
     [Fact]
     public async Task Purchase_WhenMerchantMissing_ShouldReturnBadRequest()
     {
-        using var client = _fixture.CreateClient();
+        using var client = await _fixture.CreateAuthenticatedClientAsync();
 
         var create = await client.PostAsJsonAsync("/api/accounts", new { ownerName = "Val Test 2", initialBalance = 10m });
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
