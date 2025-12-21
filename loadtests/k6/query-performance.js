@@ -1,5 +1,6 @@
 import http from 'k6/http';
 import { check } from 'k6';
+import { authHeaders, createK6Credentials, registerOrLogin } from './lib/auth.js';
 
 const BASE_URL = __ENV.BASE_URL || 'http://host.docker.internal:8000';
 const VUS = parseInt(__ENV.VUS || '500', 10);
@@ -24,11 +25,15 @@ export const options = {
 };
 
 export function setup() {
+  const accessToken = registerOrLogin(BASE_URL, createK6Credentials('query'));
   // Criar uma conta para testes
   const createAccountRes = http.post(
     `${BASE_URL}/api/accounts`,
     JSON.stringify({ ownerName: 'k6-query-test', initialBalance: 1000 }),
-    { headers: { 'Content-Type': 'application/json' }, tags: { name: 'POST /api/accounts' } }
+    {
+      headers: authHeaders(accessToken, { 'Content-Type': 'application/json' }),
+      tags: { name: 'POST /api/accounts' },
+    }
   );
 
   check(createAccountRes, {
@@ -43,11 +48,14 @@ export function setup() {
     http.post(
       `${BASE_URL}/api/transactions/deposit`,
       JSON.stringify({ accountId, amount: 1, description: `Setup deposit ${i}` }),
-      { headers: { 'Content-Type': 'application/json' }, tags: { name: 'POST /api/transactions/deposit' } }
+      {
+        headers: authHeaders(accessToken, { 'Content-Type': 'application/json' }),
+        tags: { name: 'POST /api/transactions/deposit' },
+      }
     );
   }
 
-  return { accountId };
+  return { accessToken, accountId };
 }
 
 export default function (data) {
@@ -55,6 +63,7 @@ export default function (data) {
 
   // Teste GET /api/accounts/{id}
   const getAccountRes = http.get(`${BASE_URL}/api/accounts/${accountId}`, {
+    headers: authHeaders(data.accessToken),
     tags: { name: 'GET /api/accounts/{id}' },
   });
 
@@ -64,6 +73,7 @@ export default function (data) {
 
   // Teste GET /api/accounts/{id}/balance
   const balanceRes = http.get(`${BASE_URL}/api/accounts/${accountId}/balance`, {
+    headers: authHeaders(data.accessToken),
     tags: { name: 'GET /api/accounts/{id}/balance' },
   });
 
@@ -77,6 +87,7 @@ export default function (data) {
 
   // Teste GET /api/accounts/{id}/statement (primeira página)
   const statementRes = http.get(`${BASE_URL}/api/accounts/${accountId}/statement?page=1&pageSize=20`, {
+    headers: authHeaders(data.accessToken),
     tags: { name: 'GET /api/accounts/{id}/statement' },
   });
 
@@ -93,6 +104,7 @@ export function teardown(data) {
   // Limpeza opcional - apenas valida que a conta ainda existe
   const accountId = data.accountId;
   const balanceRes = http.get(`${BASE_URL}/api/accounts/${accountId}/balance`, {
+    headers: authHeaders(data.accessToken),
     tags: { name: 'GET /api/accounts/{id}/balance' },
   });
 

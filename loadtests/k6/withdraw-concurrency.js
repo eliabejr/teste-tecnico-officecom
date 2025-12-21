@@ -1,5 +1,6 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { authHeaders, createK6Credentials, registerOrLogin } from './lib/auth.js';
 
 const BASE_URL = __ENV.BASE_URL || 'http://host.docker.internal:8000';
 const VUS = parseInt(__ENV.VUS || '1000', 10);
@@ -22,25 +23,32 @@ export const options = {
 };
 
 export function setup() {
+  const accessToken = registerOrLogin(BASE_URL, createK6Credentials('withdraw'));
   const initialBalance = VUS * ITERATIONS_PER_VU * AMOUNT;
 
   const createAccountRes = http.post(
     `${BASE_URL}/api/accounts`,
     JSON.stringify({ ownerName: 'k6-withdraw', initialBalance }),
-    { headers: { 'Content-Type': 'application/json' }, tags: { name: 'POST /api/accounts' } }
+    {
+      headers: authHeaders(accessToken, { 'Content-Type': 'application/json' }),
+      tags: { name: 'POST /api/accounts' },
+    }
   );
 
   check(createAccountRes, { 'account created (201)': (r) => r.status === 201 });
 
   const body = createAccountRes.json();
-  return { accountId: body?.id };
+  return { accessToken, accountId: body?.id };
 }
 
 export default function (data) {
   const withdrawRes = http.post(
     `${BASE_URL}/api/transactions/withdraw`,
     JSON.stringify({ accountId: data.accountId, amount: AMOUNT, description: `k6-with-${__VU}` }),
-    { headers: { 'Content-Type': 'application/json' }, tags: { name: 'POST /api/transactions/withdraw' } }
+    {
+      headers: authHeaders(data.accessToken, { 'Content-Type': 'application/json' }),
+      tags: { name: 'POST /api/transactions/withdraw' },
+    }
   );
 
   check(withdrawRes, { 'withdraw created (201)': (r) => r.status === 201 });
@@ -52,6 +60,7 @@ export function teardown(data) {
   const expectedTx = VUS * ITERATIONS_PER_VU;
 
   const balanceRes = http.get(`${BASE_URL}/api/accounts/${data.accountId}/balance`, {
+    headers: authHeaders(data.accessToken),
     tags: { name: 'GET /api/accounts/{id}/balance' },
   });
 
@@ -62,7 +71,7 @@ export function teardown(data) {
 
   const statementRes = http.get(
     `${BASE_URL}/api/accounts/${data.accountId}/statement?page=1&pageSize=100`,
-    { tags: { name: 'GET /api/accounts/{id}/statement' } }
+    { headers: authHeaders(data.accessToken), tags: { name: 'GET /api/accounts/{id}/statement' } }
   );
 
   check(statementRes, {

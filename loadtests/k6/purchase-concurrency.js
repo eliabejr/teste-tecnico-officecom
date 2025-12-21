@@ -1,5 +1,6 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
+import { authHeaders, createK6Credentials, registerOrLogin } from './lib/auth.js';
 
 const BASE_URL = __ENV.BASE_URL || 'http://host.docker.internal:8000';
 const VUS = parseInt(__ENV.VUS || '1000', 10);
@@ -22,12 +23,16 @@ export const options = {
 };
 
 export function setup() {
+  const accessToken = registerOrLogin(BASE_URL, createK6Credentials('purchase'));
   const initialBalance = VUS * ITERATIONS_PER_VU * AMOUNT;
 
   const createAccountRes = http.post(
     `${BASE_URL}/api/accounts`,
     JSON.stringify({ ownerName: 'k6-loadtest', initialBalance }),
-    { headers: { 'Content-Type': 'application/json' }, tags: { name: 'POST /api/accounts' } }
+    {
+      headers: authHeaders(accessToken, { 'Content-Type': 'application/json' }),
+      tags: { name: 'POST /api/accounts' },
+    }
   );
 
   check(createAccountRes, {
@@ -35,7 +40,7 @@ export function setup() {
   });
 
   const body = createAccountRes.json();
-  return { accountId: body?.id };
+  return { accessToken, accountId: body?.id };
 }
 
 export default function (data) {
@@ -44,7 +49,10 @@ export default function (data) {
   const purchaseRes = http.post(
     `${BASE_URL}/api/transactions/purchase`,
     JSON.stringify({ accountId, amount: AMOUNT, merchant: `k6-M${__VU}` }),
-    { headers: { 'Content-Type': 'application/json' }, tags: { name: 'POST /api/transactions/purchase' } }
+    {
+      headers: authHeaders(data.accessToken, { 'Content-Type': 'application/json' }),
+      tags: { name: 'POST /api/transactions/purchase' },
+    }
   );
 
   check(purchaseRes, {
@@ -59,6 +67,7 @@ export function teardown(data) {
   const expectedTx = VUS * ITERATIONS_PER_VU;
 
   const balanceRes = http.get(`${BASE_URL}/api/accounts/${accountId}/balance`, {
+    headers: authHeaders(data.accessToken),
     tags: { name: 'GET /api/accounts/{id}/balance' },
   });
 
@@ -69,7 +78,7 @@ export function teardown(data) {
 
   const statementRes = http.get(
     `${BASE_URL}/api/accounts/${accountId}/statement?page=1&pageSize=100`,
-    { tags: { name: 'GET /api/accounts/{id}/statement' } }
+    { headers: authHeaders(data.accessToken), tags: { name: 'GET /api/accounts/{id}/statement' } }
   );
 
   check(statementRes, {
