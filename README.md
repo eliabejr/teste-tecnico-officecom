@@ -30,15 +30,6 @@ A arquitetura segue os princípios de **Clean Architecture** com separação de 
 - Domain: Entidades, regras de negócio e Domain Events
 - Infrastructure: Persistência (EF Core, Redis), Event Sourcing (Kafka), repositórios, cache
 
-### Event Sourcing
-
-A aplicação implementa Event Sourcing com Apache Kafka para garantir:
-- Exatamente-uma-vez (exactly-once): Producer idempotente + idempotency keys
-- Ordenação garantida: Particionamento por AccountId
-- Rastreabilidade completa: Todos os eventos armazenados permanentemente
-- Prevenção de race conditions: Idempotency keys no Redis
-
-Documentação completa em [`docs/event-sourcing.md`](docs/event-sourcing.md)
 
 ## Decisões Arquiteturais
 Padrão ADR, armazenados na pasta `docs/adr.`
